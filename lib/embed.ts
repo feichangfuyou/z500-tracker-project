@@ -1,0 +1,66 @@
+import { fmtCompact } from "./format";
+import type { Flag, Project } from "./types";
+
+export const EMBED_VARIANTS = ["card", "chip", "burn", "flags", "delta"] as const;
+export type EmbedVariant = (typeof EMBED_VARIANTS)[number];
+
+export const EMBED_SIZES: Record<EmbedVariant, { width: number; height: number; label: string }> = {
+  chip: { width: 200, height: 40, label: "Tiny chip" },
+  burn: { width: 360, height: 72, label: "Verified burn" },
+  flags: { width: 360, height: 72, label: "Flags" },
+  delta: { width: 360, height: 72, label: "Official vs Crosscheck" },
+  card: { width: 360, height: 240, label: "Dossier card" },
+};
+
+export type EmbedCoin = Pick<
+  Project,
+  "mint" | "name" | "ticker" | "verifiedBurn" | "officialRank" | "officialDelta" | "flags" | "slug" | "score"
+>;
+
+export function parseEmbedVariant(raw: string | null | undefined): EmbedVariant {
+  const v = (raw || "card").toLowerCase();
+  return (EMBED_VARIANTS as readonly string[]).includes(v) ? (v as EmbedVariant) : "card";
+}
+
+export function embedPath(mint: string, variant: EmbedVariant = "card") {
+  return variant === "card" ? `/embed/${mint}` : `/embed/${mint}?v=${variant}`;
+}
+
+export function iframeSnippet(origin: string, mint: string, variant: EmbedVariant, title: string) {
+  const { width, height } = EMBED_SIZES[variant];
+  const src = `${origin.replace(/\/$/, "")}${embedPath(mint, variant)}`;
+  const safeTitle = title.replace(/[<>"]/g, "").slice(0, 80) || "Coin";
+  return `<iframe src="${src}" width="${width}" height="${height}" style="border:0" loading="lazy" title="${safeTitle} Crosscheck"></iframe>`;
+}
+
+export function crosscheckRankFromDelta(p: Pick<EmbedCoin, "officialRank" | "officialDelta">) {
+  if (p.officialRank == null || p.officialDelta == null) return null;
+  return p.officialRank - p.officialDelta;
+}
+
+export function burnLine(p: Pick<EmbedCoin, "verifiedBurn">) {
+  if (p.verifiedBurn == null) return "Burns not verified";
+  return `${fmtCompact(p.verifiedBurn)} $ANSEM burned`;
+}
+
+export function deltaLine(p: Pick<EmbedCoin, "officialRank" | "officialDelta">) {
+  const ours = crosscheckRankFromDelta(p);
+  const official = p.officialRank != null ? `#${p.officialRank}` : "—";
+  const crosscheck = ours != null ? `#${ours}` : "—";
+  return `Official ${official} · Crosscheck ${crosscheck}`;
+}
+
+export function flagLine(flags: Flag[]) {
+  if (!flags.length) return "No flags";
+  return flags
+    .slice(0, 2)
+    .map((f) => f.label)
+    .join(" · ");
+}
+
+export function chipLine(p: EmbedCoin) {
+  if (p.verifiedBurn != null) return burnLine(p);
+  if (p.officialRank != null) return deltaLine(p);
+  if (p.flags.length) return flagLine(p.flags);
+  return p.ticker ? `$${p.ticker}` : p.name;
+}

@@ -1,0 +1,341 @@
+import { activeBoost, fetchAnsemBoosts, fetchAnsemCoins, fetchAnsemMarket, mapTier, type AnsemBoost, type AnsemCoin } from "./ansem";
+import { fetchDexBatch, overlayDex } from "./dex";
+import { enrichBudget, nextEnrichMints } from "./enrich";
+import { heliusApiKey } from "./helius";
+import { buildIndexDay, pushIndexDay } from "./index-day";
+import { notifyTape } from "./notify";
+import { resolveProvenance } from "./provenance";
+import { airdropMcapUsd, computeScore, officialScore, ranksFromOrder } from "./score";
+import { dexRefreshBudget, heliusPaceMs, nextScanTargets, pendingFirstPass, scanBudget, SCAN_PASS_MS } from "./scan";
+import { fetchHolderRadar, fetchOnchainBurns } from "./solana";
+import { readStore, withStore } from "./store";
+import {
+  burnDeltaEvent,
+  burnEvents,
+  detectBoostEvents,
+  detectLaunches,
+  detectMigrations,
+  pushHistory,
+  pushTape,
+  snapshotStatuses,
+} from "./tape";
+import { ANSEM_MINT, DEX_HOT_MS, type BurnCache, type DexCache, type Dossier, type TapeEvent } from "./types";
+
+function coinName(c: Pick<AnsemCoin, "name" | "ticker" | "mint">) {
+  return { mint: c.mint, name: c.name, ticker: c.ticker, status: null as string | null };
+}
+
+export async function runScanPass() {
+  const store = await readStore();
+  let coins: AnsemCoin[] = [];
+  try {
+    coins = await fetchAnsemCoins();
+  } catch {
+    coins = (store.coinSnapshot.coins || []) as AnsemCoin[];
+  }
+  const visible = coins.filter((c) => !c.nsfw && c.mint !== ANSEM_MINT);
+  const now = Date.now();
+  const byWallet = new Map<string, AnsemCoin>();
+  for (const c of visible) {
+    if (c.creatorWallet) byWallet.set(c.creatorWallet, c);
+  }
+  const targets = [
+    ...visible
+      .filter((c) => c.creatorWallet)
+      .map((c) => ({
+        wallet: c.creatorWallet as string,
+        mint: c.mint,
+        tier: mapTier(c.tier),
+        addedAt: c.createdAt ? Date.parse(c.createdAt) : now,
+      })),
+    ...store.community
+      .filter((p) => !p.hidden && p.launchWallet)
+      .map((p) => ({
+        wallet: p.launchWallet as string,
+        mint: p.mint,
+        tier: p.tier,
+        addedAt: p.addedAt,
+      })),
+    ...Object.values(store.burns).map((b) => ({
+      wallet: b.wallet,
+      mint: "",
+      tier: "Unranked",
+      addedAt: 0,
+    })),
+  ];
+
+  const pending = pendingFirstPass(targets, store.burns);
+  const burst = pending > 0 && Boolean(heliusApiKey());
+  const batch = nextScanTargets(targets, store.burns, scanBudget(pending), now, Boolean(heliusApiKey()), burst);
+  const burns: Record<string, BurnCache> = { ...store.burns };
+  let scanned = 0;
+  let errors = 0;
+  let lastWallet = store.scanCursor.lastWallet;
+  const freshTape: TapeEvent[] = [];
+  const stopAt = Date.now() + SCAN_PASS_MS;
+  const paceMs = heliusPaceMs(pending);
+
+  for (const t of batch) {
+    if (Date.now() >= stopAt) break;
+    const cached = burns[t.wallet];
+    try {
+      const scan = await fetchOnchainBurns(t.wallet, {
+        cursor: cached?.cursor,
+        headSig: cached?.headSig,
+        continueOlder: Boolean(cached && !cached.exhausted),
+        indexedBy: cached?.indexedBy ?? null,
+        paceMs,
+        deadlineMs: burst ? 8_000 : undefined,
+      });
+      if (!scan.indexedBy && scan.txChecked === 0) {
+        errors += 1;
+        continue;
+      }
+      const prevBurn = cached?.verifiedBurn || 0;
+      const wipe = Boolean(scan.replace && prevBurn > 0 && scan.txChecked === 0);
+      burns[t.wallet] = {
+        wallet: t.wallet,
+        verifiedBurn: wipe ? prevBurn : scan.replace ? scan.verifiedBurn : prevBurn + scan.verifiedBurn,
+        txChecked: wipe ? cached?.txChecked || 0 : scan.replace ? scan.txChecked : (cached?.txChecked || 0) + scan.txChecked,
+        txBurned: wipe ? cached?.txBurned || 0 : scan.replace ? scan.txBurned : (cached?.txBurned || 0) + scan.txBurned,
+        scannedAt: Date.now(),
+        cursor: wipe ? cached?.cursor ?? scan.cursor : scan.cursor,
+        exhausted: wipe ? false : scan.exhausted,
+        headSig: wipe ? cached?.headSig ?? scan.headSig : scan.headSig,
+        indexedBy: wipe ? cached?.indexedBy : scan.indexedBy ?? cached?.indexedBy,
+      };
+      const coin =
+        byWallet.get(t.wallet) ||
+        store.community.find((p) => p.launchWallet === t.wallet) ||
+        coinName({ mint: t.mint, name: t.mint, ticker: "" });
+      const named = {
+        mint: "mint" in coin ? coin.mint : t.mint,
+        name: coin.name,
+        ticker: "ticker" in coin ? coin.ticker : undefined,
+        status: "status" in coin ? coin.status : null,
+        slug: "slug" in coin ? coin.slug : undefined,
+      };
+      if (scan.events.length) freshTape.push(...burnEvents(scan.events, named, Date.now()));
+      else {
+        const delta = burnDeltaEvent(scan.verifiedBurn, named, t.wallet, Date.now());
+        if (delta) freshTape.push(delta);
+      }
+      scanned += 1;
+      lastWallet = t.wallet;
+      if (burst && scanned % 10 === 0) {
+        await withStore((s) => {
+          s.burns = { ...s.burns, ...burns };
+        });
+      }
+    } catch (err) {
+      errors += 1;
+      const msg = err instanceof Error ? err.message.replace(/api-key=[^&\s]+/gi, "api-key=[redacted]") : "scan failed";
+      console.error("burn wallet failed", t.wallet, msg);
+    }
+  }
+
+  const namedCoins = visible.map((c) => ({
+    mint: c.mint,
+    name: c.name,
+    ticker: c.ticker,
+    status: c.status || null,
+    slug: c.slug,
+  }));
+  freshTape.push(...detectLaunches(store.seenMints, namedCoins, now));
+  freshTape.push(...detectMigrations(store.mintStatus, namedCoins, now));
+
+  const staleDex = burst
+    ? []
+    : visible
+        .map((c) => c.mint)
+        .filter((mint) => {
+          const hit = store.dex[mint];
+          return !hit || now - hit.at > DEX_HOT_MS;
+        })
+        .slice(0, dexRefreshBudget());
+  let dexFresh: Record<string, DexCache> = {};
+  if (staleDex.length) {
+    try {
+      const batchDex = await fetchDexBatch(staleDex);
+      const at = Date.now();
+      dexFresh = Object.fromEntries(Object.entries(batchDex).map(([mint, live]) => [mint, { at, live }]));
+    } catch {
+      dexFresh = {};
+    }
+  }
+
+  const [boosts, market] = await Promise.all([
+    fetchAnsemBoosts().catch(() => ({} as Record<string, AnsemBoost>)),
+    fetchAnsemMarket().catch(() => null),
+  ]);
+  const boostTape = detectBoostEvents(store.boostSeen || {}, namedCoins, boosts, now);
+  freshTape.push(...boostTape.events);
+  const ansemPrice = market?.priceUsd || 0;
+  const dex = { ...store.dex, ...dexFresh };
+  const scored = visible.map((c) => {
+    const boost = activeBoost(boosts[c.slug], now);
+    const listedAirdropMcap = airdropMcapUsd(c.priceUsd, c.airdropTotal);
+    const listed = {
+      priceUsd: c.priceUsd ?? null,
+      marketCap: c.marketCapUsd ?? null,
+      fdv: c.marketCapUsd ?? null,
+      airdropMcap: listedAirdropMcap,
+      volume24h: c.volume24hUsd ?? null,
+      change24h: c.change24hPct ?? null,
+      liquidity: null,
+      dexUrl: null,
+      symbol: c.ticker || "",
+      name: c.name || "",
+    };
+    const live = overlayDex(listed, dex[c.mint]?.live);
+    live.airdropMcap = airdropMcapUsd(live.priceUsd, c.airdropTotal) ?? live.airdropMcap;
+    const burn = c.creatorWallet ? burns[c.creatorWallet] : undefined;
+    return {
+      mint: c.mint,
+      score: computeScore({
+        live,
+        verifiedBurn: burn?.verifiedBurn ?? null,
+        burnAmount: 0,
+        burnPriceRef: ansemPrice,
+        boostPoints: boost?.amount || 0,
+      }),
+      official: officialScore({
+        listedAirdropMcap,
+        listedMarketCap: c.marketCapUsd ?? null,
+        boostPoints: boost?.amount || 0,
+      }),
+    };
+  });
+  const ranked = [...scored].sort((a, b) => b.score - a.score);
+  const officialOrder = [...scored].sort((a, b) => b.official - a.official);
+
+  const hotMints = ranked.map((r) => r.mint);
+  const provMints = burst ? [] : nextEnrichMints(hotMints, store.provenance, 30 * 60 * 1000, enrichBudget("provenance"), now);
+  const holdMints = burst ? [] : nextEnrichMints(hotMints, store.holders, 15 * 60 * 1000, enrichBudget("holders"), now);
+  const provenance: typeof store.provenance = { ...store.provenance };
+  const holders: typeof store.holders = { ...store.holders };
+  const dossiers: Record<string, Dossier> = { ...store.dossiers };
+
+  for (const mint of provMints) {
+    const coin = visible.find((c) => c.mint === mint);
+    try {
+      const resolved = await resolveProvenance(mint, coin?.creatorWallet || null);
+      provenance[mint] = { creator: resolved.creator, status: resolved.status, at: resolved.at };
+      const prev = dossiers[mint];
+      dossiers[mint] = {
+        at: resolved.at,
+        holders: prev?.holders || [],
+        creator: resolved.creator,
+        onchainCreator: resolved.sources.onchain,
+        pumpCreator: resolved.sources.pump,
+        createSig: resolved.createSig,
+        createSlot: resolved.createSlot,
+        sameBlockBuys: resolved.bundle.sameBlockBuys,
+        sameBlockWallets: resolved.bundle.sameBlockWallets,
+        sniper: resolved.bundle.sniper || prev?.sniper || false,
+      };
+      if (resolved.bundle.sniper && holders[mint]) {
+        holders[mint] = { ...holders[mint], sniper: true };
+      }
+    } catch {
+      /* skip */
+    }
+  }
+  for (const mint of holdMints) {
+    try {
+      const radar = await fetchHolderRadar(mint);
+      if (radar) {
+        const sniper = radar.sniper || Boolean(dossiers[mint]?.sniper);
+        holders[mint] = {
+          top10Pct: radar.top10Pct,
+          at: Date.now(),
+          insiderPct: radar.insiderPct,
+          sniper,
+          clustered: radar.clustered,
+          holders: radar.holders,
+        };
+        const prev = dossiers[mint];
+        dossiers[mint] = {
+          at: Date.now(),
+          holders: radar.holders,
+          creator: prev?.creator ?? provenance[mint]?.creator ?? null,
+          onchainCreator: prev?.onchainCreator ?? null,
+          pumpCreator: prev?.pumpCreator ?? null,
+          createSig: prev?.createSig ?? null,
+          createSlot: prev?.createSlot ?? null,
+          sameBlockBuys: prev?.sameBlockBuys ?? 0,
+          sameBlockWallets: prev?.sameBlockWallets ?? 0,
+          sniper,
+        };
+      }
+    } catch {
+      /* skip */
+    }
+  }
+
+  const finishedAt = Date.now();
+  const rankSnap = {
+    at: finishedAt,
+    ranks: ranksFromOrder(ranked.map((r) => r.mint)),
+    official: ranksFromOrder(officialOrder.map((r) => r.mint)),
+  };
+  await withStore((s) => {
+    s.burns = { ...s.burns, ...burns };
+    s.dex = { ...s.dex, ...dexFresh };
+    s.provenance = { ...s.provenance, ...provenance };
+    s.holders = { ...s.holders, ...holders };
+    s.dossiers = { ...s.dossiers, ...dossiers };
+    s.indexDays = pushIndexDay(
+      s.indexDays || [],
+      buildIndexDay(
+        ranked.map((r) => {
+          const coin = visible.find((c) => c.mint === r.mint);
+          const burn = coin?.creatorWallet ? burns[coin.creatorWallet] : undefined;
+          const official = officialOrder.findIndex((o) => o.mint === r.mint) + 1;
+          return {
+            mint: r.mint,
+            name: coin?.name || r.mint,
+            ticker: coin?.ticker,
+            score: r.score,
+            officialRank: official || null,
+            airdropMcap: airdropMcapUsd(coin?.priceUsd, coin?.airdropTotal),
+            burned: burn?.verifiedBurn ?? null,
+            imageUrl: coin?.imageUrl ?? null,
+            marketCap: dex[r.mint]?.live.marketCap ?? coin?.marketCapUsd ?? null,
+            change24h: dex[r.mint]?.live.change24h ?? coin?.change24hPct ?? null,
+            tier: coin ? mapTier(coin.tier) : undefined,
+            status: coin?.status ?? null,
+          };
+        }),
+        finishedAt,
+      ),
+    );
+    s.boostSeen = boostTape.next;
+    s.scanCursor = {
+      at: finishedAt,
+      scanned: (s.scanCursor.scanned || 0) + scanned,
+      lastWallet,
+      errors: (s.scanCursor.errors || 0) + errors,
+    };
+    s.rankSnapshot = rankSnap;
+    s.rankHistory = pushHistory(s.rankHistory || [], rankSnap);
+    s.tape = pushTape(s.tape || [], freshTape);
+    s.seenMints = namedCoins.map((c) => c.mint);
+    s.mintStatus = snapshotStatuses(namedCoins);
+    if (coins.length) s.coinSnapshot = { at: finishedAt, coins };
+  });
+
+  if (freshTape.length) notifyTape(freshTape).catch(() => undefined);
+
+  return {
+    scanned,
+    errors,
+    wallets: batch.slice(0, scanned).map((t) => t.wallet),
+    pending: Math.max(0, pending - scanned),
+    mode: burst ? "burst" : "cruise",
+    dex: Object.keys(dexFresh).length,
+    lastWallet,
+    tape: freshTape.length,
+    at: finishedAt,
+  };
+}
