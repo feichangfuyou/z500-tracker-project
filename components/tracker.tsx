@@ -124,14 +124,21 @@ function TickerPin({
   label,
   value,
   format,
+  className,
 }: {
   label: string;
   value: number | null | undefined;
   format: (n: number | null | undefined) => string;
+  className?: string;
 }) {
   return (
-    <span className="flex h-[var(--ticker-h)] shrink-0 items-center gap-1 whitespace-nowrap border-l border-border px-2 tabular-nums sm:gap-1.5 sm:px-3.5">
-      <span className="text-dim">{label}</span>
+    <span
+      className={cn(
+        "flex h-[var(--ticker-h)] shrink-0 items-center gap-1 whitespace-nowrap border-l border-border px-2 tabular-nums sm:gap-1.5 sm:px-3.5",
+        className,
+      )}
+    >
+      <span className="hidden text-dim min-[400px]:inline">{label}</span>
       <span className="text-ink">
         <LiveNum value={value} format={format} />
       </span>
@@ -609,9 +616,9 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
   );
 
   return (
-    <div className="min-h-dvh overflow-x-clip bg-bg pb-[calc(var(--ticker-h)+1.25rem+env(safe-area-inset-bottom))] text-ink">
+    <div className="min-h-dvh overflow-x-clip bg-bg pb-[calc(var(--ticker-h)+2.25rem+env(safe-area-inset-bottom))] text-ink">
       <SiteHeader>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={() => (alertsOn ? setAlertsOn(false) : enableAlerts())}
@@ -665,12 +672,13 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
           <div className="hero-banner__copy max-w-[620px] px-5 py-3 sm:py-5 lg:px-8 lg:py-7">
             <p className="type-eyebrow">Unofficial · not ansem.io</p>
             <h1 className="display display-scan display-title mt-2 text-balance text-ink sm:mt-3">
-              What’s launching on ansem.io
+              What’s launching
+              <span className="hidden min-[400px]:inline"> on ansem.io</span>
             </h1>
             <p className="mt-2 text-pretty text-sm text-muted sm:hidden">
-              Unofficial tracker of ansem.io launches — prices, verified $ANSEM burns, and flags.{" "}
+              Unofficial tracker of ansem.io launches — prices, burns, and flags.{" "}
               <Link href="/guide" className="text-ink hover:text-gold-lit">
-                <ScrambleText text="How to read this site" />
+                <ScrambleText text="How to read this" />
               </Link>
               .
             </p>
@@ -679,16 +687,16 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
               same coins — prices, whether $ANSEM burns actually happened, and flags when something looks off. Not the
               official z500, and not built by ansem.io.
             </p>
-            <div className="mt-4 flex w-full max-w-[472px] flex-col min-[420px]:flex-row sm:mt-6">
+            <div className="mt-4 flex w-full flex-col min-[400px]:max-w-[472px] min-[400px]:flex-row sm:mt-6">
               <Link
                 href="/guide"
-                className="type-btn inline-flex h-11 min-h-11 flex-1 items-center justify-center bg-accent px-3 font-semibold text-void hover:bg-accent-hover"
+                className="type-btn inline-flex h-11 min-h-11 w-full flex-1 items-center justify-center bg-accent px-3 font-semibold text-void hover:bg-accent-hover"
               >
                 <ScrambleText text="Start here" />
               </Link>
               <a
                 href="#board"
-                className="type-btn inline-flex h-11 min-h-11 items-center justify-center border-t border-accent px-4 text-accent hover:bg-accent hover:text-void min-[420px]:border-t-0 min-[420px]:border-l"
+                className="type-btn inline-flex h-11 min-h-11 w-full items-center justify-center border-t border-accent px-4 text-accent hover:bg-accent hover:text-void min-[400px]:w-auto min-[400px]:border-t-0 min-[400px]:border-l"
               >
                 <ScrambleText text="Open the board" />
               </a>
@@ -877,13 +885,13 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
               </div>
             </div>
             <div className="flex w-full shrink-0 items-center gap-2 sm:ml-auto sm:w-auto">
-              <div className="flex h-9 min-w-0 flex-1 items-center border border-border p-[3px] sm:h-[31px] sm:flex-none">
+            <div className="grid w-full grid-cols-2 gap-1 min-[400px]:flex min-[400px]:h-[31px] min-[400px]:flex-none min-[400px]:items-center min-[400px]:border min-[400px]:border-border min-[400px]:p-[3px]">
                 <button
                   type="button"
                   onClick={() => setAuto((v) => !v)}
                   aria-pressed={auto}
                   className={cn(
-                    "type-btn inline-flex h-full min-h-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap px-3 sm:flex-none",
+                    "type-btn inline-flex h-9 min-h-9 items-center justify-center gap-1.5 border border-border px-2 min-[400px]:h-full min-[400px]:min-h-0 min-[400px]:flex-none min-[400px]:border-0 min-[400px]:px-3",
                     auto ? "text-accent" : "text-muted hover:text-ink",
                   )}
                 >
@@ -894,7 +902,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                   type="button"
                   onClick={() => toggleSort("listed")}
                   className={cn(
-                    "type-btn h-full min-h-0 flex-1 whitespace-nowrap px-3 sm:flex-none",
+                    "type-btn inline-flex h-9 min-h-9 items-center justify-center whitespace-nowrap border border-border px-2 min-[400px]:h-full min-[400px]:min-h-0 min-[400px]:flex-none min-[400px]:border-0 min-[400px]:px-3",
                     sortKey === "listed" ? "bg-accent text-void" : "text-muted hover:text-ink",
                   )}
                 >
@@ -904,7 +912,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                   type="button"
                   onClick={() => toggleSort("mcap")}
                   className={cn(
-                    "type-btn h-full min-h-0 flex-1 whitespace-nowrap px-3 sm:flex-none",
+                    "type-btn inline-flex h-9 min-h-9 items-center justify-center whitespace-nowrap border border-border px-2 min-[400px]:h-full min-[400px]:min-h-0 min-[400px]:flex-none min-[400px]:border-0 min-[400px]:px-3",
                     sortKey === "mcap" ? "bg-accent text-void" : "text-muted hover:text-ink",
                   )}
                 >
@@ -914,7 +922,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                   type="button"
                   onClick={() => toggleSort("score")}
                   className={cn(
-                    "type-btn h-full min-h-0 flex-1 whitespace-nowrap px-3 sm:flex-none",
+                    "type-btn inline-flex h-9 min-h-9 items-center justify-center whitespace-nowrap border border-border px-2 min-[400px]:h-full min-[400px]:min-h-0 min-[400px]:flex-none min-[400px]:border-0 min-[400px]:px-3",
                     sortKey === "score" ? "bg-accent text-void" : "text-muted hover:text-ink",
                   )}
                 >
@@ -1093,9 +1101,14 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
               {shown.map((p, i) => (
                 <article key={p.id} className="board-card flex w-full min-w-0 flex-col overflow-hidden border border-border bg-bg hover:bg-row">
                   <div className="flex flex-1 flex-col p-3">
-                  <div className="flex gap-3">
+                  <div className="flex gap-2 min-[400px]:gap-3">
                     <Link href={`/c/${p.mint}`} className="shrink-0 self-start" aria-label={`Open ${p.name}`}>
-                      <CoinThumb src={p.imageUrl} label={p.ticker || p.name} size={112} className="size-28 text-2xl" />
+                      <CoinThumb
+                        src={p.imageUrl}
+                        label={p.ticker || p.name}
+                        size={112}
+                        className="size-16 text-lg min-[360px]:size-20 min-[400px]:size-28 min-[400px]:text-2xl"
+                      />
                     </Link>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
@@ -1432,10 +1445,10 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                             initial={reduceMotion ? false : { opacity: 0, y: -8 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={reduceMotion ? { duration: 0 } : { duration: 0.2, ease: "easeOut" }}
-                            className="flex flex-wrap items-center justify-between gap-3"
+                            className="flex flex-wrap items-center gap-x-4 gap-y-2"
                           >
-                            <TradeLinks mint={p.mint} slug={p.slug} />
-                            <Link href={`/c/${p.mint}`} className="type-btn text-muted hover:text-ink">
+                            <TradeLinks mint={p.mint} slug={p.slug} compact />
+                            <Link href={`/c/${p.mint}`} className="type-btn shrink-0 text-muted hover:text-ink">
                               <ScrambleText text="Open dossier" />
                             </Link>
                           </motion.div>
@@ -1528,9 +1541,9 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
             </div>
           )}
         </div>
-        <div className="flex h-[var(--ticker-h)] shrink-0 items-center">
+        <div className="hidden h-[var(--ticker-h)] shrink-0 items-center min-[360px]:flex">
           <TickerPin label="SOL" value={board.solPrice} format={fmtUsd} />
-          <TickerPin label="ANSEM" value={board.ansemPrice} format={fmtAnsem} />
+          <TickerPin label="ANSEM" value={board.ansemPrice} format={fmtAnsem} className="hidden min-[400px]:flex" />
         </div>
       </div>
 

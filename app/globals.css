@@ -120,6 +120,23 @@ body::after {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
+@media (max-width: 359px) {
+  :root {
+    --gutter: 0.75rem;
+    --header-h: 57px;
+  }
+
+  .hero-banner__copy {
+    padding-inline: 0.75rem;
+    padding-block: 0.75rem;
+    max-width: 100%;
+  }
+
+  .hero-banner__art::after {
+    background: linear-gradient(90deg, var(--bg) 0%, var(--bg) 42%, rgb(7 8 12 / 0.88) 62%, transparent 88%);
+  }
+}
+
 @media (min-width: 640px) {
   :root {
     --gutter: 1.25rem;
@@ -353,6 +370,7 @@ dialog::backdrop {
 }
 
 .board-table {
+  --board-rank-w: 96px;
   width: 100%;
   min-width: 1632px;
   table-layout: fixed;
@@ -400,6 +418,7 @@ dialog::backdrop {
   min-height: 0;
   overflow: visible;
   padding-block: 10px;
+  padding-left: calc(var(--board-rank-w) + 12px);
 }
 
 .live-num {
@@ -435,7 +454,7 @@ dialog::backdrop {
   }
 }
 
-.board-table col.rank { width: 96px; }
+.board-table col.rank { width: var(--board-rank-w); }
 .board-table col.coin { width: 260px; }
 .board-table col.flags { width: 168px; }
 .board-table col.tier { width: 92px; }
@@ -480,7 +499,7 @@ dialog::backdrop {
 }
 
 .display-title {
-  font-size: clamp(1.75rem, 1.35rem + 1.4vw, 2.75rem);
+  font-size: clamp(1.375rem, 1.15rem + 2.2vw, 2.75rem);
 }
 
 .display-scan {

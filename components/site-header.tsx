@@ -328,7 +328,7 @@ export function SiteHeader({ children, className }: { children?: ReactNode; clas
                 router.push("/guide");
               }}
               className={cn(
-                "grid size-10 shrink-0 place-items-center border border-border bg-panel text-muted hover:border-border-strong hover:text-ink sm:size-[31px]",
+                "hidden size-10 shrink-0 place-items-center border border-border bg-panel text-muted hover:border-border-strong hover:text-ink min-[360px]:grid sm:size-[31px]",
                 onGuide && "text-accent hover:text-accent",
               )}
             >
