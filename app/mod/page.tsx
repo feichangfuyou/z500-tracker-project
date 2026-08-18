@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LiveNum } from "@/components/live-num";
 import { PageBack } from "@/components/page-back";
 import { Reveal } from "@/components/reveal";
+import { ScrambleText } from "@/components/scramble-text";
 import { shortAddr } from "@/lib/format";
 
 type Item = {
@@ -91,7 +92,7 @@ export default function ModPage() {
           <PageBack href="/" />
           <span>
             <Link href="/" className="text-muted hover:text-ink">
-              Tracker
+              <ScrambleText text="Tracker" />
             </Link>
             {" · "}moderation
           </span>
@@ -121,7 +122,7 @@ export default function ModPage() {
               type="submit"
               className="type-btn h-8 shrink-0 border border-accent bg-accent px-4 font-semibold text-void"
             >
-              Unlock
+              <ScrambleText text="Unlock" />
             </button>
           </form>
         ) : (
@@ -150,7 +151,7 @@ export default function ModPage() {
                 }}
                 className="type-btn mt-3 h-8 border border-border px-3 text-muted hover:text-ink"
               >
-                Send test
+                <ScrambleText text="Send test" />
               </button>
               <Reveal show={!!alertNote}>
                 <p className="mt-2 text-sm text-muted">{alertNote}</p>
@@ -179,13 +180,13 @@ export default function ModPage() {
                   </div>
                   <div className="flex flex-wrap gap-x-3 gap-y-1">
                     <button type="button" onClick={() => act(item.id, "hide")} className="type-btn text-bad">
-                      Hide
+                      <ScrambleText text="Hide" />
                     </button>
                     <button type="button" onClick={() => act(item.id, "restore")} className="type-btn text-good">
-                      Restore
+                      <ScrambleText text="Restore" />
                     </button>
                     <button type="button" onClick={() => act(item.id, "dismiss")} className="type-btn text-muted">
-                      Dismiss
+                      <ScrambleText text="Dismiss" />
                     </button>
                   </div>
                 </div>

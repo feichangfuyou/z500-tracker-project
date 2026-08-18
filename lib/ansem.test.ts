@@ -17,14 +17,27 @@ describe("mapPumpCoin", () => {
     expect(mapped?.bannerUrl).toBeNull();
   });
 
+  it("rewrites pump.fun IPFS artwork onto ipfs.io", () => {
+    const cid = "bafkreifk5tpndk6lj5csnhybvhpaqy2clmy6bzyvwnu2mslo5xcm3pyn44";
+    const mapped = mapPumpCoin({
+      mint: "Mint111111111111111111111111111111111111111",
+      name: "Frog",
+      symbol: "FROG",
+      image_uri: `https://pump.mypinata.cloud/ipfs/${cid}`,
+    });
+    expect(mapped?.imageUrl).toBe(`https://ipfs.io/ipfs/${cid}`);
+  });
+
   it("keeps a https banner from pump.fun", () => {
     const mapped = mapPumpCoin({
       mint: "Mint111111111111111111111111111111111111111",
       name: "Frog",
       symbol: "FROG",
-      banner_uri: "https://ipfs.io/ipfs/banner",
+      banner_uri: "https://ipfs.io/ipfs/bafkreifk5tpndk6lj5csnhybvhpaqy2clmy6bzyvwnu2mslo5xcm3pyn44",
     });
-    expect(mapped?.bannerUrl).toBe("https://ipfs.io/ipfs/banner");
+    expect(mapped?.bannerUrl).toBe(
+      "https://ipfs.io/ipfs/bafkreifk5tpndk6lj5csnhybvhpaqy2clmy6bzyvwnu2mslo5xcm3pyn44",
+    );
   });
 
   it("drops coins without a mint", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compactBoard, publicCoin } from "./public";
-import type { Project } from "./types";
+import { EMPTY_BOARD_STATS, type Project } from "./types";
 
 describe("publicCoin", () => {
   it("exposes a slim CORS-safe coin", () => {
@@ -30,6 +30,10 @@ describe("publicCoin", () => {
     expect(coin.provenance).toBe("match");
     expect(coin.ansemUrl).toContain("/coin/alpha");
     expect(coin.launchCount).toBe(0);
+    expect(coin.listedRank).toBe(3);
+    expect(coin.scoreKind).toBe("proxy");
+    expect(coin.rankBasis).toBe("listed-inputs");
+    expect(coin.burnedComplete).toBe(false);
     expect(coin.bannerUrl).toBe("https://ansem.io/api/banners/abc");
     expect(coin.enhancedAt).toBe("2026-08-18T13:57:56.400Z");
   });
@@ -85,7 +89,7 @@ describe("publicCoin", () => {
       ],
       ansemPrice: 0.2,
       solPrice: 150,
-      stats: { coins: 1, airdroppedUsd: 1, burnedAnsem: 1, holders: 1, boosted: 0, flagged: 0, scannedWallets: 1, lastScanAt: 1 },
+      stats: { ...EMPTY_BOARD_STATS, coins: 1, airdroppedUsd: 1, burnedAnsem: 1, holders: 1, scannedWallets: 1, lastScanAt: 1 },
       lastSynced: 1,
       feedSource: "ansem",
       tape: [],
@@ -139,7 +143,7 @@ describe("publicCoin", () => {
         ],
         ansemPrice: 1,
         solPrice: 1,
-        stats: { coins: 1, airdroppedUsd: 1, burnedAnsem: 1, holders: 1, boosted: 0, flagged: 0, scannedWallets: 1, lastScanAt: 1 },
+        stats: { ...EMPTY_BOARD_STATS, coins: 1, airdroppedUsd: 1, burnedAnsem: 1, holders: 1, scannedWallets: 1, lastScanAt: 1 },
         lastSynced: 1,
         feedSource: "ansem",
         tape: [],

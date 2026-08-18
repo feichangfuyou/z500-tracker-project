@@ -9,6 +9,7 @@ import { LiveNum } from "@/components/live-num";
 import { MiniStat, MiniStatGrid } from "@/components/mini-stat";
 import { PageBack } from "@/components/page-back";
 import { Reveal } from "@/components/reveal";
+import { ScrambleText } from "@/components/scramble-text";
 import { SiteHeader } from "@/components/site-header";
 import type { HoldingRow } from "@/lib/airdrop";
 import { fmtCompact, fmtInt, fmtPrice, fmtUsd, shortAddr } from "@/lib/format";
@@ -105,7 +106,7 @@ export function AirdropView() {
             disabled={loading || !wallet.trim()}
             className="type-btn h-11 border border-accent bg-accent px-4 font-semibold text-void disabled:opacity-40"
           >
-            {loading ? "Reading…" : "Check"}
+            <ScrambleText text={loading ? "Reading…" : "Check"} />
           </button>
         </form>
         <Reveal show={!!error}>
@@ -135,7 +136,7 @@ export function AirdropView() {
                   href={`/wallets/${ledger.wallet}`}
                   className="type-btn inline-flex h-8 items-center border border-border px-3 text-muted hover:text-ink"
                 >
-                  Launch wallet
+                  <ScrambleText text="Launch wallet" />
                 </Link>
               ) : null}
             </div>
@@ -185,7 +186,9 @@ function HoldTable({
                 <Link href={`/c/${r.mint}`} className="flex min-w-0 items-center gap-2.5 hover:text-gold-lit">
                   <CoinThumb src={r.imageUrl} label={r.ticker || r.name} />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm text-ink">{r.name}</span>
+                    <span className="block truncate text-sm text-ink">
+                      <ScrambleText text={r.name} />
+                    </span>
                     <span className="mt-0.5 block font-mono text-[11px] text-dim">
                       {r.ticker ? `$${r.ticker}` : shortAddr(r.mint)} · {statusLabel(r)}
                     </span>
@@ -197,7 +200,7 @@ function HoldTable({
                   rel="noopener noreferrer"
                   className="type-btn inline-flex h-8 items-center border border-border px-3 text-muted hover:text-ink"
                 >
-                  {r.status === "claimable" ? "Claim" : "Open"}
+                  <ScrambleText text={r.status === "claimable" ? "Claim" : "Open"} />
                 </a>
               </div>
               <MiniStatGrid className="sm:grid-cols-3">

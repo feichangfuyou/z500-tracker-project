@@ -1,6 +1,7 @@
 "use client";
 
 import { FadeIn } from "@/components/reveal";
+import { ScrambleText } from "@/components/scramble-text";
 
 export default function Error({
   error: _error,
@@ -20,7 +21,7 @@ export default function Error({
         onClick={reset}
         className="type-btn h-8 border border-accent bg-accent px-4 font-semibold text-void"
       >
-        Try again
+        <ScrambleText text="Try again" />
       </button>
     </FadeIn>
   );

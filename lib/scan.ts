@@ -21,10 +21,14 @@ export type ScanTarget = {
 
 function freshness(burn: BurnCache | undefined, now: number, reindexLegacy = false, burst = false) {
   if (reindexLegacy && burn && burn.indexedBy !== "helius") return 0;
+  // Burst = cover every launch wallet once. Unseen first; unfinished resume after.
+  if (burst) {
+    if (!burn) return 0;
+    if (!burn.exhausted) return 1;
+    return 3;
+  }
   if (burn && !burn.exhausted) return 0;
   if (!burn) return 1;
-  // During backfill, skip already-indexed wallets so slots go to first-pass.
-  if (burst) return 3;
   if (now - burn.scannedAt >= CRUISE_STALE_MS) return 2;
   return 3;
 }
@@ -43,13 +47,13 @@ export function pendingFirstPass(targets: ScanTarget[], burns: Record<string, Bu
 export function scanBudget(pendingFirstPassCount = 0) {
   const rpc = process.env.SOLANA_RPC?.trim() || "";
   const paid = Boolean(rpc) && !rpc.includes("api.mainnet-beta.solana.com");
-  if (pendingFirstPassCount > 0) return paid ? 80 : 16;
+  if (pendingFirstPassCount > 0) return paid ? 180 : 24;
   return paid ? 12 : 4;
 }
 
 export function heliusPaceMs(pendingFirstPassCount = 0) {
-  // Free Enhanced cap is 2 req/s; 400ms stays near that with 429 retries.
-  return pendingFirstPassCount > 0 ? 550 : 300;
+  // Page sleep only; first-touch wallets are usually 1 request. 429s retry in helius.ts.
+  return pendingFirstPassCount > 0 ? 50 : 200;
 }
 
 export function nextScanTargets(

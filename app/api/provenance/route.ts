@@ -53,6 +53,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(saved);
   } catch {
-    return NextResponse.json({ error: "Couldn't check launch-wallet provenance." }, { status: 502 });
+    return NextResponse.json({ error: "Couldn't check listed vs create wallet." }, { status: 502 });
   }
 }

@@ -112,10 +112,23 @@ await test("GET /wallets", async () => {
   assert(r.text.includes("wallet") || r.text.includes("CROSSCHECK"), "missing wallets page");
 });
 
+await test("GET /radar", async () => {
+  const r = await req("/radar");
+  assert(r.status === 200, `status ${r.status}`);
+  assert(r.text.includes("radar") || r.text.includes("CROSSCHECK") || r.text.includes("Gold"), "missing radar page");
+});
+
 await test("GET /api/public/board", async () => {
   const r = await req("/api/public/board");
   assert(r.status === 200, `status ${r.status}`);
   assert(Array.isArray(r.json.coins), "no public coins");
+});
+
+await test("GET /api/public/radar", async () => {
+  const r = await req("/api/public/radar");
+  assert(r.status === 200, `status ${r.status}`);
+  assert(Array.isArray(r.json.coins), "no radar coins");
+  assert(typeof r.json.flagged === "number", "missing flagged count");
 });
 
 await test("PUT /api/watch invalid wallet", async () => {

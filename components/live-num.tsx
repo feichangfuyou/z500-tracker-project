@@ -135,7 +135,7 @@ export function LiveShift({
 }) {
   if (value == null || Number.isNaN(value) || value === 0) return null;
   return (
-    <span className={cn(value > 0 ? "text-good" : "text-bad", className)}>
+    <span className={cn("whitespace-nowrap", value > 0 ? "text-good" : "text-bad", className)}>
       <LiveNum
         value={value}
         format={(n) => {

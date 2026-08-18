@@ -1,9 +1,19 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
-export function MiniStat({ k, v, className }: { k: string; v: ReactNode; className?: string }) {
+export function MiniStat({
+  k,
+  v,
+  className,
+  hint,
+}: {
+  k: string;
+  v: ReactNode;
+  className?: string;
+  hint?: string;
+}) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0" title={hint}>
       <dt className="type-th">{k}</dt>
       <dd className={cn("mt-0.5 truncate font-mono text-xs tabular-nums text-ink", className)}>{v}</dd>
     </div>

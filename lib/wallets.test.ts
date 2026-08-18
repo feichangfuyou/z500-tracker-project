@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findWallet, isKnownLaunchWallet, launchWallets, walletAirdropUsd, walletBestOfficial, walletMismatchCount } from "./wallets";
+import { findWallet, isKnownLaunchWallet, launchWallets, walletAirdropUsd, walletBestOfficial, walletLedger, walletMismatchCount } from "./wallets";
 import type { LiveData, Project } from "./types";
 
 function live(partial: Partial<LiveData> = {}): LiveData {
@@ -135,7 +135,7 @@ describe("launchWallets", () => {
         launchWallet: "w1",
         officialRank: 9,
         walletProvenance: "mismatch",
-        flags: [{ id: "mismatch", label: "Wallet mismatch", severity: "bad" }],
+        flags: [{ id: "mismatch", label: "Listed ≠ create", severity: "warn" }],
         live: live({ airdropMcap: 100 }),
       }),
       project({
@@ -151,5 +151,26 @@ describe("launchWallets", () => {
     expect(walletAirdropUsd(row)).toBe(140);
     expect(walletBestOfficial(row)).toBe(3);
     expect(walletMismatchCount(row)).toBe(1);
+  });
+
+  it("rolls a ledger of wallets, launches, serials, and tiers", () => {
+    const rows = launchWallets([
+      project({ id: "1", name: "A", mint: "a", launchWallet: "w1", tier: "Diamond" }),
+      project({ id: "2", name: "B", mint: "b", launchWallet: "w1", tier: "Gold" }),
+      project({ id: "3", name: "C", mint: "c", launchWallet: "w2", tier: "Gold" }),
+      project({ id: "4", name: "D", mint: "d", launchWallet: "w3", tier: "Free" }),
+      project({ id: "5", name: "E", mint: "e", launchWallet: "w4" }),
+      project({ id: "6", name: "F", mint: "f", launchWallet: "w4" }),
+      project({ id: "7", name: "G", mint: "g", launchWallet: "w4" }),
+      project({ id: "8", name: "H", mint: "h", launchWallet: "w4" }),
+      project({ id: "9", name: "I", mint: "i", launchWallet: "w4" }),
+    ]);
+    expect(walletLedger(rows)).toEqual({
+      wallets: 4,
+      launches: 9,
+      serial: 1,
+      diamond: 1,
+      gold: 1,
+    });
   });
 });

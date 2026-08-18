@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { PageBack } from "@/components/page-back";
 import { FadeIn } from "@/components/reveal";
 import { SiteHeader } from "@/components/site-header";
+import { ScrambleText } from "@/components/scramble-text";
 import { ANSEM_AIRDROP, ANSEM_ORIGIN, ANSEM_Z500 } from "@/lib/links";
 
 export const metadata: Metadata = {
@@ -19,11 +20,11 @@ const STEPS = [
   ],
   [
     "Crosscheck watches the same list",
-    "This site pulls those launches and adds checks ansem.io does not show in one place: on-chain burns, whether the listed wallet actually created the coin, holder concentration, and warning flags.",
+    "This site pulls those launches and adds checks ansem.io does not show in one place: on-chain burns, listed wallet vs mint-create wallet, holder concentration, and warning flags.",
   ],
   [
     "Read the board, then open a coin",
-    "The homepage table is the live list. Click a name for the scorecard — Pass, Warn, Fail, or not checked yet — plus wallet provenance, holders, burns, and why a flag appeared.",
+    "The homepage table is the live list. Click a name for the scorecard — Pass, Warn, Fail, or not checked yet — plus creator check, holders, burns, and why a flag appeared.",
   ],
 ] as const;
 
@@ -32,24 +33,24 @@ const ANSEM_TERMS = [
   ["$ANSEM", "ansem.io’s token. Launch teams burn it. Holders can receive airdrops from new coins."],
   ["Burn", "Sending $ANSEM to a dead address so it cannot be spent again. Used to list or rank a coin."],
   ["Boost", "Paid extra visibility on ansem.io. Active boosts also feed our score."],
-  ["z500", "ansem.io’s official ranking. We show an “Official #” estimate. Our Score column is different."],
+  ["z500", "ansem.io’s official ranking. We show a Listed # estimate from public inputs. Score is ours."],
   ["Tier", "Free, Bronze, Gold, or Diamond on ansem.io. Higher tiers usually mean more $ANSEM burned."],
   ["Airdrop", "New-coin tokens sent to $ANSEM holders. “Airdrop” on this board is that supply’s dollar value."],
 ] as const;
 
 const BOARD_COLS = [
   ["#", "Place on this board right now, by the sort you picked (usually our score)."],
-  ["Flags", "Problems we found. Empty is better. See the flag list below."],
+  ["Flags", "Checks that fired. Empty is better. See the flag list below."],
   ["Tier", "ansem.io listing tier."],
   ["Mcap", "Circulating market cap from DexScreener, with the listed figure as fallback."],
   ["Airdrop", "Dollar value of tokens airdropped to $ANSEM holders."],
   ["Burned", "How much $ANSEM we verified on-chain from the launch wallet."],
   ["Score", "Our ranking: airdrop value + verified burns + active boosts. Invented here — not z500’s formula."],
-  ["Official", "Where the coin would sit on ansem.io’s order (airdrop value + boosts, no on-chain burns)."],
+  ["Listed", "Where the coin sits if we rank public ansem.io inputs only (airdrop value + boosts, no on-chain burns)."],
 ] as const;
 
 const FLAGS = [
-  ["Wallet mismatch", "The listed launch wallet is not the wallet that created the mint."],
+  ["Listed ≠ create", "Listed launch wallet is not the mint-create wallet we found. A warning, not a fail — they may be different jobs."],
   ["Bundle / sniper", "Buys in the same create block, or RugCheck labeled it a sniper/bundle."],
   ["5 / 8 launches", "Same wallet launched several coins on this board. Five is a warning, eight is worse."],
   ["Insiders", "Wallets RugCheck calls insiders hold a large share."],
@@ -62,6 +63,7 @@ const FLAGS = [
 
 const PAGES = [
   ["Board", "/", "Live list of launches. Start here after the primer."],
+  ["Radar", "/radar", "Gold and Diamond with a burn gap, listed ≠ create, serial, or bundle."],
   ["Index", "/index", "Each UTC day we snapshot the top 25 by our score."],
   ["Wallets", "/wallets", "Launch wallets grouped together. Serial means five or more coins."],
   ["Airdrop", "/airdrop", "Paste a wallet to see claimed vs still-claimable vs sold. Claiming is on ansem.io."],
@@ -103,7 +105,7 @@ export default function GuidePage() {
             <p className="mt-4 max-w-[36rem] text-pretty text-sm text-muted">
               Crosscheck is an unofficial tracker for coins launching on{" "}
               <a href={ANSEM_ORIGIN} target="_blank" rel="noopener noreferrer" className="text-ink hover:text-gold-lit">
-                ansem.io
+                <ScrambleText text="ansem.io" />
               </a>
               . If you have never used ansem.io, the board will look like noise. This page is the map.
             </p>
@@ -112,7 +114,7 @@ export default function GuidePage() {
                 href="/#board"
                 className="type-btn inline-flex h-8 items-center border border-accent bg-accent px-3 font-semibold text-void hover:border-accent-hover hover:bg-accent-hover"
               >
-                Open the board
+                <ScrambleText text="Open the board" />
               </Link>
               <a
                 href={ANSEM_Z500}
@@ -120,7 +122,7 @@ export default function GuidePage() {
                 rel="noopener noreferrer"
                 className="type-btn inline-flex h-8 items-center border border-border px-3 text-muted hover:text-ink"
               >
-                Official z500
+                <ScrambleText text="Official z500" />
               </a>
             </div>
           </div>
@@ -158,7 +160,7 @@ export default function GuidePage() {
               rel="noopener noreferrer"
               className="font-mono text-[12px] text-muted hover:text-ink"
             >
-              Claim airdrops on ansem.io
+              <ScrambleText text="Claim airdrops on ansem.io" />
             </a>
           </p>
         </section>
@@ -171,11 +173,12 @@ export default function GuidePage() {
           </p>
           <ul className="mt-4 list-disc space-y-2 pl-5 text-pretty text-sm text-muted">
             <li>A scorecard on each coin: wallet, burns, holders, insiders, snipers, serial launches, liquidity.</li>
-            <li>Live board with market cap, airdrop value, burns, boosts, and two ranks (ours vs official-like).</li>
+            <li>Live board with market cap, airdrop value, burns, boosts, and two ranks (ours vs listed-order).</li>
             <li>On-chain $ANSEM burn scans from the launch wallet.</li>
-            <li>Wallet provenance: listed launch wallet vs the wallet that actually created the mint.</li>
+            <li>Creator check: listed launch wallet vs the mint-create wallet we found.</li>
             <li>Holder concentration, same-slot buyers, and serial-deployer counts.</li>
             <li>Daily top-25 snapshot, known wallets, airdrop P&amp;L lookup, and embeddable badges.</li>
+            <li>Paid-tier radar: Gold/Diamond with a burn gap, listed ≠ create, serial, or bundle.</li>
           </ul>
         </section>
 
@@ -183,7 +186,8 @@ export default function GuidePage() {
           <h2 className="display text-lg text-ink">The board</h2>
           <p className="mt-3 text-pretty text-sm text-muted">
             Filters along the top (On curve, Migrated, Boosted, Flagged) narrow the list. Live keeps prices moving.
-            Mcap / Score switches the sort. Watch stars a coin in this browser.
+            Listed is the default sort (public ansem.io inputs). Mcap / Score are overlays. Watch stars a coin in this
+            browser.
           </p>
           <dl className="mt-6 divide-y divide-border border-t border-border">
             {BOARD_COLS.map(([k, v]) => (
@@ -200,7 +204,7 @@ export default function GuidePage() {
             if we have not seen enough yet. The number next to the grade is a risk score from the flags.
           </p>
           <dl className="mt-6 divide-y divide-border border-t border-border">
-            <Entry k="Wallet" v="Does the listed launch wallet match the wallet that created the mint?" />
+            <Entry k="Wallet" v="Listed vs mint-create wallet. Same wallet is a pass. Different wallet is a warning — we compared addresses, not intent." />
             <Entry k="Burns" v="Did we verify $ANSEM burns on-chain? Gold/Diamond with none is a warning. A claimed burn the chain does not back is a fail." />
             <Entry k="Holders" v="Share owned by the top 10 wallets. Warn at 55%, fail at 75%." />
             <Entry k="Insiders" v="Share RugCheck labels as insiders. Warn at 12%, fail at 25%." />
@@ -214,7 +218,7 @@ export default function GuidePage() {
           <h2 className="display text-lg text-ink">Flags and the coin page</h2>
           <p className="mt-3 text-pretty text-sm text-muted">
             Rose outline is bad. Gold outline is a warning. A number next to the chips is a risk score. On the coin page,
-            On-chain is a labeled grid: listed wallet, provenance, create wallet, pump.fun creator, top holders,
+            On-chain is a labeled grid: listed wallet, creator check, create wallet, pump.fun creator, top holders,
             launch count, same-slot buyers, and last burn scan.
           </p>
           <dl className="mt-6 divide-y divide-border border-t border-border">
@@ -223,8 +227,9 @@ export default function GuidePage() {
             ))}
           </dl>
           <p className="mt-4 text-pretty text-sm text-muted">
-            Provenance is matched, mismatch, or unknown. Matched means the listed wallet created the mint. Mismatch
-            means we found a creator and it is a different wallet. Unknown means we have not seen enough yet.
+            Creator check is same wallet, different wallet, or not checked. Same wallet means the listed address
+            matches a creator we found. Different wallet means we found a creator and it is not that address.
+            Not checked means we have not seen enough yet.
           </p>
         </section>
 
@@ -235,7 +240,7 @@ export default function GuidePage() {
               <div key={k} className="grid gap-1 py-3 sm:grid-cols-[10rem_1fr] sm:gap-4">
                 <dt>
                   <Link href={href} className="font-mono text-[12px] text-ink hover:text-gold-lit">
-                    {k}
+                    <ScrambleText text={k} />
                   </Link>
                 </dt>
                 <dd className="text-pretty text-sm text-muted">{v}</dd>

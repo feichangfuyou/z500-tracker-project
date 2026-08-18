@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { CoinThumb } from "@/components/coin-thumb";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import {
   Bell,
@@ -12,18 +13,20 @@ import {
   ChevronRight,
   ExternalLink,
   Flag,
-  Plus,
+  LayoutGrid,
+  List,
   RefreshCw,
   Search,
   Star,
   Trash2,
   Users,
-  X,
 } from "lucide-react";
 import { BurnVideo } from "@/components/burn-hero";
 import { FlagChips } from "@/components/flag-chips";
+import { MiniStat, changeClass } from "@/components/mini-stat";
 import { LiveNum, LiveShift } from "@/components/live-num";
 import { Reveal, Spin } from "@/components/reveal";
+import { ScrambleText } from "@/components/scramble-text";
 import { SiteHeader } from "@/components/site-header";
 import { StatIcon, type StatIconName } from "@/components/stat-icon";
 import { TapeStrip } from "@/components/tape-strip";
@@ -34,6 +37,13 @@ import { loadLocalWatches, loadWatchWallet, pullWatches, pushWatches, saveLocalW
 import { applyBurnValue, burnAnnounce, burnIncreases, snapshotBurns, type BurnHit } from "@/lib/burn-fx";
 import { cn } from "@/lib/cn";
 import { fmtCompact, fmtInt, fmtNum, fmtPct, fmtPrice, fmtRank, fmtUsd, shortAddr } from "@/lib/format";
+import {
+  getHeaderChrome,
+  getHeaderChromeServer,
+  setHeaderAdd,
+  setHeaderQuery,
+  subscribeHeaderChrome,
+} from "@/lib/header-chrome";
 import { isValidAddress } from "@/lib/guardrails";
 import { computeScore } from "@/lib/score";
 import { projectFlags } from "@/lib/flags";
@@ -74,8 +84,20 @@ function paginationItems(current: number, total: number): Array<number | "gap"> 
   return items;
 }
 
-type SortKey = "score" | "mcap" | "change" | "burn" | "airdrop" | "boost" | "delta";
+type SortKey = "listed" | "score" | "mcap" | "change" | "burn" | "airdrop" | "boost" | "delta";
+type BoardView = "grid" | "table";
 type FeedFilter = "all" | "on_curve" | "migrated" | "Free" | "Bronze" | "Gold" | "Diamond" | "boosted" | "watching" | "flagged";
+
+const VIEW_KEY = "crosscheck_board_view";
+
+function loadBoardView(): BoardView {
+  try {
+    const saved = localStorage.getItem(VIEW_KEY);
+    return saved === "grid" || saved === "table" ? saved : "grid";
+  } catch {
+    return "grid";
+  }
+}
 
 const FEEDS: { id: FeedFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -124,11 +146,10 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
   const [board, setBoard] = useState(initial);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const { query, addOpen: showAdd } = useSyncExternalStore(subscribeHeaderChrome, getHeaderChrome, getHeaderChromeServer);
   const [feed, setFeed] = useState<FeedFilter>("all");
-  const [sortKey, setSortKey] = useState<SortKey>("score");
-  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
-  const [showAdd, setShowAdd] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("listed");
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("asc");
   const [auto, setAuto] = useState(true);
   const [watched, setWatched] = useState<string[]>([]);
   const [watchWallet, setWatchWallet] = useState("");
@@ -138,6 +159,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
   const [checkingHolders, setCheckingHolders] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Project | null>(null);
   const [openMint, setOpenMint] = useState<string | null>(null);
+  const [view, setView] = useState<BoardView>("grid");
   const [formError, setFormError] = useState<string | null>(null);
   const [burnFx, setBurnFx] = useState<{ at: number; label: string } | null>(null);
   const [form, setForm] = useState({
@@ -169,6 +191,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
+    setView(loadBoardView());
     setWatched(loadWatched());
     setWatchWallet(loadWatchWallet());
     fetch("/api/session")
@@ -184,6 +207,15 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
       })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
+
+  useEffect(() => {
+    if (!showAdd) return;
+    requestAnimationFrame(() => addRef.current?.scrollIntoView({ block: "start" }));
+  }, [showAdd]);
 
   useEffect(() => {
     const el = tickerRef.current;
@@ -310,6 +342,10 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
       let av = 0;
       let bv = 0;
       switch (sortKey) {
+        case "listed":
+          av = a.officialRank ?? Number.POSITIVE_INFINITY;
+          bv = b.officialRank ?? Number.POSITIVE_INFINITY;
+          break;
         case "score":
           av = a.score;
           bv = b.score;
@@ -364,13 +400,22 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
     if (sortKey === key) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
     else {
       setSortKey(key);
-      setSortDir("desc");
+      setSortDir(key === "listed" ? "asc" : "desc");
     }
   };
 
   const goToPage = (next: number) => {
     setPage(Math.min(Math.max(1, next), pageCount));
     document.getElementById("board")?.scrollIntoView({ block: "start" });
+  };
+
+  const setBoardView = (next: BoardView) => {
+    setView(next);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      /* ignore quota / private mode */
+    }
   };
 
   const toggleWatch = (mint: string) => {
@@ -384,8 +429,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
   };
 
   const openAdd = () => {
-    setShowAdd(true);
-    requestAnimationFrame(() => addRef.current?.scrollIntoView({ block: "start" }));
+    setHeaderAdd(true);
   };
 
   const addProject = async () => {
@@ -402,7 +446,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
       return;
     }
     setForm({ name: "", mint: "", tier: "Unranked", burnAmount: "", launchWallet: "" });
-    setShowAdd(false);
+    setHeaderAdd(false);
     refresh();
   };
 
@@ -550,20 +594,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
   return (
     <div className="min-h-dvh bg-bg pb-[calc(var(--ticker-h)+1.25rem+env(safe-area-inset-bottom))] text-ink">
       <SiteHeader>
-        <label className="search ml-auto hidden min-w-0 max-w-[240px] flex-1 md:flex">
-            <span className="sr-only">Search</span>
-            <Search size={13} className="shrink-0 text-dim" />
-            <input
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Search name or ticker"
-              className="min-w-0 flex-1 bg-transparent font-mono text-base text-ink outline-none sm:text-[11px]"
-            />
-          </label>
-          <div className="ml-auto flex shrink-0 items-center gap-2 sm:ml-0">
+        <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => (alertsOn ? setAlertsOn(false) : enableAlerts())}
@@ -590,18 +621,11 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
               >
                 <RefreshCw size={12} />
               </motion.span>
-              <span className="hidden lg:inline">{refreshing ? "Refreshing" : "Refresh"}</span>
+              <span className="hidden lg:inline">
+                <ScrambleText text={refreshing ? "Refreshing" : "Refresh"} />
+              </span>
             </button>
-            <button
-              type="button"
-              onClick={() => (showAdd ? setShowAdd(false) : openAdd())}
-              aria-label={showAdd ? "Cancel" : "Add a missing coin"}
-              className="type-btn inline-flex size-10 items-center justify-center border border-accent bg-accent font-semibold text-void hover:border-accent-hover hover:bg-accent-hover sm:size-auto sm:h-8 sm:gap-1.5 sm:px-3"
-            >
-              {showAdd ? <X size={12} /> : <Plus size={12} />}
-              <span className="hidden sm:inline">{showAdd ? "Cancel" : "Add a coin"}</span>
-            </button>
-          </div>
+        </div>
       </SiteHeader>
 
       <p className="sr-only" aria-live="polite">
@@ -636,13 +660,13 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                 href="/guide"
                 className="type-btn inline-flex h-11 min-h-11 flex-1 items-center justify-center bg-accent px-3 font-semibold text-void hover:bg-accent-hover"
               >
-                Start here
+                <ScrambleText text="Start here" />
               </Link>
               <a
                 href="#board"
                 className="type-btn inline-flex h-11 min-h-11 items-center justify-center border-t border-accent px-4 text-accent hover:bg-accent hover:text-void min-[420px]:border-t-0 min-[420px]:border-l"
               >
-                Open the board
+                <ScrambleText text="Open the board" />
               </a>
             </div>
           </div>
@@ -659,16 +683,16 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
           <div>
             <p className="type-eyebrow">2. This board</p>
             <p className="mt-2 text-pretty text-sm text-muted">
-              The table below is our live list. Score is a ranking we built. Official # is roughly where the coin sits
-              on ansem.io.
+              The table below is our live list. Listed # uses public ansem.io inputs (airdrop value + boosts). Score
+              adds verified burns — that is not z500.
             </p>
           </div>
           <div>
             <p className="type-eyebrow">3. Click a coin</p>
             <p className="mt-2 text-pretty text-sm text-muted">
-              Open a dossier for wallet checks, holders, and why a red flag appeared.{" "}
+              Open a coin for the scorecard, holders, and why a flag appeared.{" "}
               <Link href="/guide" className="text-ink hover:text-gold-lit">
-                Full guide
+                <ScrambleText text="Full guide" />
               </Link>
               .
             </p>
@@ -678,7 +702,29 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
         <div className="mt-8 grid grid-cols-1 gap-6 border-t border-border pt-6 min-[480px]:grid-cols-2 min-[480px]:gap-x-8 lg:grid-cols-4">
           <Stat icon="rocket" k="Coins listed" value={board.stats.coins} format={fmtInt} c="Every launch we can see" />
           <Stat icon="gift" k="Airdropped" value={board.stats.airdroppedUsd} format={fmtUsd} c="Value sent to holders" />
-          <Stat icon="flame" k="$ANSEM burned" value={board.stats.burnedAnsem} format={fmtCompact} c="Checked on-chain" />
+          <Stat
+            icon="flame"
+            k="$ANSEM burned"
+            value={board.stats.burnedAnsem}
+            format={fmtCompact}
+            c={
+              <>
+                Listed on ansem.io
+                {board.stats.verifiedBurned > 0 ? (
+                  <>
+                    {" "}
+                    · on-chain <LiveNum value={board.stats.verifiedBurned} format="compact" flash={false} />
+                  </>
+                ) : null}
+                {board.stats.paidPending > 0 ? (
+                  <>
+                    {" "}
+                    · {board.stats.paidPending} paid still scanning
+                  </>
+                ) : null}
+              </>
+            }
+          />
           <Stat
             icon="bolt"
             k="Boosted now"
@@ -709,7 +755,8 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
         </Reveal>
         <Reveal show={board.feedSource !== "ansem"}>
           <div className="mt-6 border border-border bg-panel px-4 py-3 text-sm text-muted">
-            Could not load the live ansem.io list. Showing {FEED_COPY[board.feedSource]}.
+            Could not load the live ansem.io list. Showing {FEED_COPY[board.feedSource]}. These rows are not ranked as
+            listed ansem.io launches.
           </div>
         </Reveal>
 
@@ -719,8 +766,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
           <input
             value={query}
             onChange={(e) => {
-              setQuery(e.target.value);
-              setPage(1);
+              setHeaderQuery(e.target.value);
             }}
             placeholder="Search name or ticker"
             className="min-w-0 flex-1 bg-transparent font-mono text-base text-ink outline-none sm:text-[11px]"
@@ -748,43 +794,87 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                       : "border-transparent text-muted hover:border-gold hover:text-gold-lit",
                   )}
                 >
-                  {f.label}
+                  <ScrambleText text={f.label} />
                 </button>
               ))}
             </div>
-            <div className="flex h-9 w-full shrink-0 items-center border border-border p-[3px] sm:ml-auto sm:h-[31px] sm:w-auto">
-              <button
-                type="button"
-                onClick={() => setAuto((v) => !v)}
-                aria-pressed={auto}
-                className={cn(
-                  "type-btn inline-flex h-full min-h-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap px-3 sm:flex-none",
-                  auto ? "text-accent" : "text-muted hover:text-ink",
-                )}
-              >
-                {auto ? <span className="live-dot" aria-hidden /> : null}
-                Live
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleSort("mcap")}
-                className={cn(
-                  "type-btn h-full min-h-0 flex-1 whitespace-nowrap px-3 sm:flex-none",
-                  sortKey === "mcap" ? "bg-accent text-void" : "text-muted hover:text-ink",
-                )}
-              >
-                Mcap
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleSort("score")}
-                className={cn(
-                  "type-btn h-full min-h-0 flex-1 whitespace-nowrap px-3 sm:flex-none",
-                  sortKey === "score" ? "bg-accent text-void" : "text-muted hover:text-ink",
-                )}
-              >
-                Score
-              </button>
+            <div className="flex w-full shrink-0 items-center gap-2 sm:ml-auto sm:w-auto">
+              <div className="flex h-9 min-w-0 flex-1 items-center border border-border p-[3px] sm:h-[31px] sm:flex-none">
+                <button
+                  type="button"
+                  onClick={() => setAuto((v) => !v)}
+                  aria-pressed={auto}
+                  className={cn(
+                    "type-btn inline-flex h-full min-h-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap px-3 sm:flex-none",
+                    auto ? "text-accent" : "text-muted hover:text-ink",
+                  )}
+                >
+                  {auto ? <span className="live-dot" aria-hidden /> : null}
+                  <ScrambleText text="Live" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("listed")}
+                  className={cn(
+                    "type-btn h-full min-h-0 flex-1 whitespace-nowrap px-3 sm:flex-none",
+                    sortKey === "listed" ? "bg-accent text-void" : "text-muted hover:text-ink",
+                  )}
+                >
+                  <ScrambleText text="Listed" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("mcap")}
+                  className={cn(
+                    "type-btn h-full min-h-0 flex-1 whitespace-nowrap px-3 sm:flex-none",
+                    sortKey === "mcap" ? "bg-accent text-void" : "text-muted hover:text-ink",
+                  )}
+                >
+                  <ScrambleText text="Mcap" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("score")}
+                  className={cn(
+                    "type-btn h-full min-h-0 flex-1 whitespace-nowrap px-3 sm:flex-none",
+                    sortKey === "score" ? "bg-accent text-void" : "text-muted hover:text-ink",
+                  )}
+                >
+                  <ScrambleText text="Score" />
+                </button>
+              </div>
+              <div className="flex h-9 shrink-0 items-center border border-border p-[3px] sm:h-[31px]">
+                <button
+                  type="button"
+                  aria-pressed={view === "grid"}
+                  aria-label="Grid view"
+                  onClick={() => setBoardView("grid")}
+                  className={cn(
+                    "type-btn inline-flex h-full min-h-0 items-center gap-1.5 whitespace-nowrap px-2.5 sm:px-3",
+                    view === "grid" ? "bg-accent text-void" : "text-muted hover:text-ink",
+                  )}
+                >
+                  <LayoutGrid size={12} />
+                  <span className="hidden min-[420px]:inline">
+                    <ScrambleText text="Grid" />
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={view === "table"}
+                  aria-label="Table view"
+                  onClick={() => setBoardView("table")}
+                  className={cn(
+                    "type-btn inline-flex h-full min-h-0 items-center gap-1.5 whitespace-nowrap px-2.5 sm:px-3",
+                    view === "table" ? "bg-accent text-void" : "text-muted hover:text-ink",
+                  )}
+                >
+                  <List size={12} />
+                  <span className="hidden min-[420px]:inline">
+                    <ScrambleText text="Table" />
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
           <Reveal show={feed === "watching"} className="mt-3 flex min-w-0 items-center">
@@ -814,7 +904,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                 />
               </label>
               <button type="submit" className="type-btn h-11 shrink-0 border border-border px-3 text-muted hover:text-ink sm:h-[30px]">
-                Sync
+                <ScrambleText text="Sync" />
               </button>
             </form>
           </Reveal>
@@ -885,7 +975,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
               disabled={!form.name.trim() || !form.mint.trim()}
               className="type-btn mt-5 inline-flex h-8 items-center border border-accent bg-accent px-4 font-semibold text-void disabled:opacity-40"
             >
-              Add coin
+              <ScrambleText text="Add coin" />
             </button>
           </div>
         </Reveal>
@@ -896,86 +986,147 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
             <button
               type="button"
               onClick={() => {
-                setQuery("");
+                setHeaderQuery("");
                 setFeed("all");
                 setPage(1);
                 openAdd();
               }}
               className="type-btn mt-4 inline-flex h-8 items-center border border-accent bg-accent px-4 font-semibold text-void"
             >
-              Add a coin
+              <ScrambleText text="Add a coin" />
             </button>
           </div>
         ) : (
           <>
-            <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:hidden">
+            {view === "grid" && (
+              <p className="mt-4 text-pretty text-xs text-dim">
+                <span className="text-muted">Board</span> is our rank.{" "}
+                <span className="text-muted">Listed</span> is ansem.io order.{" "}
+                <span className="text-muted">Airdrop</span> is value sent to $ANSEM holders.{" "}
+                <span className="text-muted">Score</span> is airdrop + burns + boosts — not z500.
+              </p>
+            )}
+            <div
+              className={cn(
+                "mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3",
+                view === "table" && "hidden",
+              )}
+            >
               {shown.map((p, i) => (
-                <article key={p.id} className="board-card w-full min-w-0 overflow-hidden border border-border bg-bg p-3.5 hover:bg-row sm:p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] leading-5 tabular-nums text-muted">
-                      <span>
-                        #<LiveNum value={rankStart + i + 1} format="int" flash={false} />
-                        {p.rankDelta !== 0 && (
-                          <span className="ml-1">
-                            <LiveShift value={p.rankDelta} />
-                          </span>
-                        )}
-                      </span>
-                      {p.officialRank != null && (
-                        <span className="text-dim">
-                          off <LiveNum value={p.officialRank} format="rank" flash={false} />
-                          {p.officialDelta != null && p.officialDelta !== 0 && (
-                            <span className="ml-1">
-                              <LiveShift value={p.officialDelta} />
-                            </span>
-                          )}
-                        </span>
-                      )}
-                    </p>
-                    <TierBadge tier={p.tier} />
-                  </div>
-                  <div className="mt-2 flex min-w-0 items-start gap-2.5">
-                    <Link href={`/c/${p.mint}`} className="flex min-w-0 flex-1 items-center gap-2.5">
-                      <CoinThumb p={p} />
-                      <span className="min-w-0">
-                        <span className="block truncate text-[13px] font-medium text-ink">{p.name}</span>
-                        <span className="mt-0.5 block font-mono text-[11px] text-dim">
-                          {p.ticker ? `$${p.ticker}` : shortAddr(p.mint)}
-                        </span>
-                      </span>
+                <article key={p.id} className="board-card flex w-full min-w-0 flex-col overflow-hidden border border-border bg-bg hover:bg-row">
+                  <div className="flex flex-1 flex-col p-3">
+                  <div className="flex gap-3">
+                    <Link href={`/c/${p.mint}`} className="shrink-0 self-start" aria-label={`Open ${p.name}`}>
+                      <CoinThumb src={p.imageUrl} label={p.ticker || p.name} size={112} className="size-28 text-2xl" />
                     </Link>
-                    {p.boostPoints > 0 && <BoostChip p={p} />}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <Link href={`/c/${p.mint}`} className="min-w-0">
+                          <span className="block truncate text-base font-medium text-ink">
+                            <ScrambleText text={p.name} />
+                          </span>
+                          <span className="mt-0.5 block truncate font-mono text-[11px] text-dim">
+                            {p.ticker ? `$${p.ticker}` : shortAddr(p.mint)}
+                          </span>
+                        </Link>
+                        <span className="flex shrink-0 items-center gap-1">
+                          {p.boostPoints > 0 && <BoostChip p={p} />}
+                          <TierBadge tier={p.tier} />
+                        </span>
+                      </div>
+                      <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] tabular-nums text-muted">
+                        <span title="This board's rank. Score adds verified $ANSEM burns.">
+                          <span className="type-th">Board</span>{" "}
+                          <span className="text-ink">
+                            <LiveNum value={rankStart + i + 1} format="rank" flash={false} />
+                            {p.rankDelta !== 0 && (
+                              <span className="ml-1">
+                                <LiveShift value={p.rankDelta} />
+                              </span>
+                            )}
+                          </span>
+                        </span>
+                        <span title="ansem.io order from public airdrop + boosts. Not the unpublished z500 formula.">
+                          <span className="type-th">Listed</span>{" "}
+                          <span className="text-ink">
+                            {p.officialRank == null ? (
+                              "—"
+                            ) : (
+                              <>
+                                <LiveNum value={p.officialRank} format="rank" flash={false} />
+                                {p.officialDelta != null && p.officialDelta !== 0 && (
+                                  <span className="ml-1">
+                                    <LiveShift value={p.officialDelta} />
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </span>
+                        </span>
+                      </p>
+                      {(p.flags || []).length > 0 && (
+                        <div className="mt-1.5 min-w-0">
+                          <FlagChips flags={p.flags} compact walletHref={p.launchWallet} />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {(p.flags || []).length > 0 && (
-                    <div className="mt-2 min-w-0">
-                      <FlagChips flags={p.flags} walletHref={p.launchWallet} />
-                    </div>
-                  )}
-                  <dl className="mt-3 space-y-1.5 font-mono text-xs tabular-nums">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <dt className="type-th shrink-0">Cap</dt>
-                      <dd className="truncate text-ink">
-                        <LiveNum value={p.live?.marketCap} format={fmtUsd} />
-                      </dd>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3">
-                      <dt className="type-th shrink-0">Airdrop</dt>
-                      <dd className="truncate text-ink">
-                        <LiveNum value={p.live?.airdropMcap} format={fmtUsd} />
-                      </dd>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3">
-                      <dt className="type-th shrink-0">24h</dt>
-                      <dd className={cn("truncate", (p.live?.change24h || 0) >= 0 ? "text-good" : "text-bad")}>
-                        <LiveNum value={p.live?.change24h} format={fmtPct} flash={false} />
-                      </dd>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3">
-                      <dt className="type-th shrink-0">Score</dt>
-                      <dd className="truncate text-ink">
-                        <LiveNum value={p.score} format={fmtUsd} />
-                      </dd>
-                    </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border pt-3">
+                    <MiniStat
+                      k="Market cap"
+                      hint="Circulating market cap from DexScreener"
+                      v={<LiveNum value={p.live?.marketCap} format={fmtUsd} />}
+                      className="text-sm"
+                    />
+                    <MiniStat
+                      k="Airdrop"
+                      hint="Dollar value of tokens sent to $ANSEM holders"
+                      v={<LiveNum value={p.live?.airdropMcap} format={fmtUsd} />}
+                      className="text-sm"
+                    />
+                    <MiniStat
+                      k="24h change"
+                      hint="Price change over the last 24 hours"
+                      v={<LiveNum value={p.live?.change24h} format={fmtPct} flash={false} />}
+                      className={cn("text-sm", changeClass(p.live?.change24h))}
+                    />
+                    <MiniStat
+                      k="Score"
+                      hint="Our ranking: airdrop + verified burns + boosts. Not z500."
+                      v={<LiveNum value={p.score} format={fmtUsd} />}
+                      className="text-sm"
+                    />
+                    <MiniStat
+                      k="Burned"
+                      hint="$ANSEM burned from the launch wallet"
+                      v={
+                        <span className="inline-flex min-w-0 items-baseline gap-1">
+                          <BurnCell
+                            compact
+                            p={p}
+                            verifying={verifying === p.id}
+                            canEdit={p.source === "community" && p.addedBy === board.sid}
+                            onVerify={() => verify(p)}
+                            onDeep={() => verify(p, true)}
+                            onBurn={(v) => patchBurn(p, v)}
+                          />
+                          <span className="text-[10px] text-dim">$ANSEM</span>
+                        </span>
+                      }
+                      className="text-sm"
+                    />
+                    <MiniStat
+                      k="Top 10"
+                      hint="Share held by the top 10 wallets. Use Holders to refresh."
+                      v={
+                        p.holderTop10Pct != null ? (
+                          <LiveNum value={p.holderTop10Pct * 100} format="holdPct" flash={false} />
+                        ) : (
+                          "—"
+                        )
+                      }
+                      className="text-sm"
+                    />
                   </dl>
                   <RowActions
                     p={p}
@@ -989,16 +1140,19 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                     onHolders={() => checkHolders(p)}
                     onReport={() => report(p)}
                     onDelete={() => setPendingDelete(p)}
-                    onBurn={(v) => patchBurn(p, v)}
                   />
-                  <div className="mt-3">
-                    <TradeLinks mint={p.mint} slug={p.slug} />
                   </div>
+                  <TradeLinks mint={p.mint} slug={p.slug} embedded />
                 </article>
               ))}
             </div>
 
-            <div className="mt-6 hidden overflow-x-auto border border-border bg-bg xl:block">
+            <div
+              className={cn(
+                "board-scroll mt-3 overflow-x-auto border border-border bg-bg",
+                view === "table" ? "block" : "hidden",
+              )}
+            >
               <table className="board-table text-sm">
                 <colgroup>
                   <col className="rank" />
@@ -1026,7 +1180,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                     {th("change", "24h")}
                     {th("burn", "Burned")}
                     {th("score", "Score")}
-                    {th("delta", "Official")}
+                    {th("listed", "Listed")}
                     <th className="type-th text-right">Watch</th>
                   </tr>
                 </thead>
@@ -1037,18 +1191,20 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                       <Fragment key={p.id}>
                     <tr className="border-b border-border transition-colors duration-150 hover:bg-row">
                       <td className="font-mono text-xs tabular-nums text-muted">
-                        <span className="inline-flex items-center gap-1">
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap">
                           <LiveNum value={rankStart + i + 1} format="int" flash={false} />
-                          {p.rankDelta !== 0 ? <LiveShift value={p.rankDelta} className="inline-flex text-[10px]" /> : null}
+                          {p.rankDelta !== 0 ? <LiveShift value={p.rankDelta} className="shrink-0 text-[10px] leading-none" /> : null}
                         </span>
                       </td>
-                      <td>
+                      <td className="coin">
                         <div className="flex w-full min-w-0 flex-col items-start gap-1">
                           <div className="flex w-full min-w-0 items-center gap-2.5">
                             <Link href={`/c/${p.mint}`} className="flex min-w-0 items-center gap-2.5">
-                              <CoinThumb p={p} />
+                              <CoinThumb src={p.imageUrl} label={p.ticker || p.name} size={26} className="size-[26px]" />
                               <span className="min-w-0 truncate leading-4">
-                                <span className="text-[13px] font-medium text-ink">{p.name}</span>
+                                <span className="text-[13px] font-medium text-ink">
+                                  <ScrambleText text={p.name} />
+                                </span>
                                 <span className="ml-2 font-mono text-[11px] text-dim">
                                   {p.ticker ? `$${p.ticker}` : shortAddr(p.mint)}
                                 </span>
@@ -1122,7 +1278,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                         {p.officialRank == null ? (
                           <span className="text-dim">—</span>
                         ) : (
-                          <span className="text-muted">
+                          <span className="whitespace-nowrap text-muted">
                             <LiveNum value={p.officialRank} format={fmtRank} flash={false} />
                             {p.officialDelta != null && p.officialDelta !== 0 ? (
                               <span className="ml-1">
@@ -1133,18 +1289,16 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                         )}
                       </td>
                       <td className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                           {p.launchWallet ? (
-                            <span className="hidden xl:inline-flex">
-                              <CheckBurns
-                                p={p}
-                                verifying={verifying === p.id}
-                                onVerify={() => verify(p)}
-                                onDeep={() => verify(p, true)}
-                              />
-                            </span>
+                            <CheckBurns
+                              p={p}
+                              verifying={verifying === p.id}
+                              onVerify={() => verify(p)}
+                              onDeep={() => verify(p, true)}
+                            />
                           ) : (
-                            <span className="hidden xl:inline-block h-[29px] w-[108px] shrink-0" aria-hidden />
+                            <span className="inline-block h-[29px] w-[108px] shrink-0" aria-hidden />
                           )}
                           <IconBtn
                             label={watched.includes(p.mint) ? "Unwatch" : "Watch"}
@@ -1200,7 +1354,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                           >
                             <TradeLinks mint={p.mint} slug={p.slug} />
                             <Link href={`/c/${p.mint}`} className="type-btn text-muted hover:text-ink">
-                              Open dossier
+                              <ScrambleText text="Open dossier" />
                             </Link>
                           </motion.div>
                         </td>
@@ -1227,18 +1381,18 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
 
         <div id="notes" className="mt-10 max-w-[720px] space-y-3 text-pretty text-[12.5px] leading-relaxed text-dim">
           <p>
-            Rank here is our score: airdrop value + checked $ANSEM burns + boosts. That is not the official z500
-            ranking. Official # is where the coin would sit on ansem.io’s list.{" "}
+            Rank here follows the sort you picked. Listed # uses public ansem.io inputs (airdrop value + boosts) — not
+            the unpublished z500 formula. Score adds verified $ANSEM burns.{" "}
             <Link href="/guide" className="text-muted hover:text-ink">
-              How to read this site
+              <ScrambleText text="How to read this site" />
             </Link>
             .
           </p>
           <p>
-            Prices come from ansem.io and DexScreener. Burns are checked on Solana. Missing a coin? Add it. Not
-            financial advice. Session cookie only. See{" "}
+            Prices come from ansem.io and DexScreener. Burns are checked on Solana from the launch wallet, in the
+            scanned window. Missing a coin? Add it. Not financial advice. Session cookie only. See{" "}
             <Link href="/privacy" className="text-muted hover:text-ink">
-              privacy
+              <ScrambleText text="privacy" />
             </Link>
             .
           </p>
@@ -1316,14 +1470,14 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
             onClick={() => setPendingDelete(null)}
             className="type-btn h-8 border border-border px-3 text-muted"
           >
-            Cancel
+            <ScrambleText text="Cancel" />
           </button>
           <button
             type="button"
             onClick={confirmDelete}
             className="type-btn h-8 border border-bad bg-bad px-3 font-semibold text-ink"
           >
-            Remove
+            <ScrambleText text="Remove" />
           </button>
         </div>
       </dialog>
@@ -1401,26 +1555,6 @@ function Pager({
         </button>
       </div>
     </nav>
-  );
-}
-
-function CoinThumb({ p }: { p: Project }) {
-  if (p.imageUrl) {
-    return (
-      <Image
-        src={p.imageUrl}
-        alt=""
-        width={26}
-        height={26}
-        className="size-[26px] shrink-0 rounded-[3px] border border-border bg-raised object-cover"
-        unoptimized
-      />
-    );
-  }
-  return (
-    <span className="grid size-[26px] shrink-0 place-items-center rounded-[3px] border border-border bg-raised font-mono text-[11px] text-dim">
-      {(p.ticker || p.name).slice(0, 1)}
-    </span>
   );
 }
 
@@ -1534,7 +1668,9 @@ function CheckBurns({
       disabled={verifying}
       className="btn-boost"
     >
-      {verifying ? "Checking…" : p.verifiedBurn != null ? (p.verifyExhausted ? "Check again" : "Check older") : "Check burns"}
+      <ScrambleText
+        text={verifying ? "Checking…" : p.verifiedBurn != null ? (p.verifyExhausted ? "Check again" : "Check older") : "Check burns"}
+      />
     </button>
   );
 }
@@ -1569,6 +1705,8 @@ function BurnCell({
         placeholder="0"
         className="h-[29px] w-20 max-w-full border border-input-border bg-input px-2 text-right font-mono text-xs tabular-nums text-accent-soft"
       />
+    ) : p.launchWallet ? (
+      <span className="font-mono text-xs tabular-nums text-dim">Pending</span>
     ) : (
       <span className="font-mono text-xs tabular-nums text-muted">
         {p.burnAmount ? <LiveNum value={p.burnAmount} format={fmtNum} flash={false} /> : "—"}
@@ -1586,7 +1724,9 @@ function BurnCell({
       {p.verifiedBurn != null ? (
         <>
           {amount}
-          <span className="font-mono text-[9px] uppercase text-good">on-chain</span>
+          <span className="font-mono text-[9px] uppercase text-good">
+            {p.verifyExhausted ? "on-chain" : "partial scan"}
+          </span>
         </>
       ) : canEdit ? (
         <>
@@ -1594,6 +1734,11 @@ function BurnCell({
           <span className="font-mono text-[9px] uppercase text-dim">
             {p.burnAmount ? "you entered this" : "none yet"}
           </span>
+        </>
+      ) : p.launchWallet ? (
+        <>
+          {amount}
+          <span className="font-mono text-[9px] uppercase text-dim">scan queued</span>
         </>
       ) : (
         amount
@@ -1615,7 +1760,6 @@ function RowActions({
   onHolders,
   onReport,
   onDelete,
-  onBurn,
 }: {
   p: Project;
   watched: boolean;
@@ -1628,50 +1772,33 @@ function RowActions({
   onHolders: () => void;
   onReport: () => void;
   onDelete: () => void;
-  onBurn: (v: string) => void;
 }) {
   return (
-    <div className="mt-3 flex flex-col gap-2">
-      <BurnCell
-        p={p}
-        verifying={verifying}
-        canEdit={canEdit}
-        onVerify={onVerify}
-        onDeep={onDeep}
-        onBurn={onBurn}
-      />
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <button type="button" onClick={onWatch} className="type-btn inline-flex min-h-8 shrink-0 items-center whitespace-nowrap text-muted">
-          {watched ? "Unwatch" : "Watch"}
+    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+      {p.launchWallet ? (
+        <CheckBurns p={p} verifying={verifying} onVerify={onVerify} onDeep={onDeep} />
+      ) : null}
+      <button type="button" onClick={onWatch} className="type-btn inline-flex min-h-8 shrink-0 items-center whitespace-nowrap text-muted">
+        <ScrambleText text={watched ? "Unwatch" : "Watch"} />
+      </button>
+      <button
+        type="button"
+        onClick={onHolders}
+        disabled={checkingHolders}
+        className="type-btn inline-flex min-h-8 shrink-0 items-center whitespace-nowrap text-muted"
+      >
+        <ScrambleText text={checkingHolders ? "Checking…" : "Holders"} />
+      </button>
+      {p.source === "community" && (
+        <button type="button" onClick={onReport} className="type-btn inline-flex min-h-8 items-center text-muted">
+          <ScrambleText text="Report" />
         </button>
-        <button
-          type="button"
-          onClick={onHolders}
-          disabled={checkingHolders}
-          className="type-btn inline-flex min-h-8 shrink-0 items-center whitespace-nowrap text-muted"
-        >
-          {checkingHolders
-            ? "Checking…"
-            : p.holderTop10Pct != null
-              ? (
-                  <>
-                    Holders{" "}
-                    <LiveNum value={p.holderTop10Pct * 100} format="holdPct" flash={false} />
-                  </>
-                )
-              : "Holders"}
+      )}
+      {canEdit && (
+        <button type="button" onClick={onDelete} className="type-btn inline-flex min-h-8 items-center text-bad">
+          <ScrambleText text="Remove" />
         </button>
-        {p.source === "community" && (
-          <button type="button" onClick={onReport} className="type-btn text-muted">
-            Report
-          </button>
-        )}
-        {canEdit && (
-          <button type="button" onClick={onDelete} className="type-btn text-bad">
-            Remove
-          </button>
-        )}
-      </div>
+      )}
     </div>
   );
 }

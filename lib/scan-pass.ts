@@ -1,4 +1,4 @@
-import { activeBoost, fetchAnsemBoosts, fetchAnsemCoins, fetchAnsemMarket, mapTier, type AnsemBoost, type AnsemCoin } from "./ansem";
+import { activeBoost, fetchAnsemBoosts, fetchAnsemCoins, fetchAnsemMarket, imageUrlFrom, mapTier, type AnsemBoost, type AnsemCoin } from "./ansem";
 import { fetchDexBatch, overlayDex } from "./dex";
 import { enrichBudget, nextEnrichMints } from "./enrich";
 import { heliusApiKey } from "./helius";
@@ -25,7 +25,7 @@ function coinName(c: Pick<AnsemCoin, "name" | "ticker" | "mint">) {
   return { mint: c.mint, name: c.name, ticker: c.ticker, status: null as string | null };
 }
 
-export async function runScanPass() {
+export async function runScanPass(opts?: { maxMs?: number }) {
   const store = await readStore();
   let coins: AnsemCoin[] = [];
   try {
@@ -65,27 +65,38 @@ export async function runScanPass() {
   ];
 
   const pending = pendingFirstPass(targets, store.burns);
+  const unfinished = Object.values(store.burns).filter((b) => !b.exhausted).length;
+  const catchup = pending > 0 || unfinished > 0;
   const burst = pending > 0 && Boolean(heliusApiKey());
-  const batch = nextScanTargets(targets, store.burns, scanBudget(pending), now, Boolean(heliusApiKey()), burst);
+  const batch = nextScanTargets(
+    targets,
+    store.burns,
+    scanBudget(catchup ? Math.max(pending, unfinished, 1) : 0),
+    now,
+    Boolean(heliusApiKey()),
+    burst,
+  );
   const burns: Record<string, BurnCache> = { ...store.burns };
   let scanned = 0;
   let errors = 0;
   let lastWallet = store.scanCursor.lastWallet;
   const freshTape: TapeEvent[] = [];
-  const stopAt = Date.now() + SCAN_PASS_MS;
-  const paceMs = heliusPaceMs(pending);
+  const stopAt = Date.now() + (opts?.maxMs ?? SCAN_PASS_MS);
+  const paceMs = heliusPaceMs(catchup ? 1 : 0);
 
   for (const t of batch) {
     if (Date.now() >= stopAt) break;
     const cached = burns[t.wallet];
     try {
+      const firstTouch = !cached || cached.indexedBy !== "helius";
       const scan = await fetchOnchainBurns(t.wallet, {
         cursor: cached?.cursor,
         headSig: cached?.headSig,
         continueOlder: Boolean(cached && !cached.exhausted),
         indexedBy: cached?.indexedBy ?? null,
         paceMs,
-        deadlineMs: burst ? 8_000 : undefined,
+        maxPages: burst && firstTouch ? 2 : undefined,
+        deadlineMs: catchup ? (firstTouch ? 2_000 : 5_000) : undefined,
       });
       if (!scan.indexedBy && scan.txChecked === 0) {
         errors += 1;
@@ -122,7 +133,7 @@ export async function runScanPass() {
       }
       scanned += 1;
       lastWallet = t.wallet;
-      if (burst && scanned % 10 === 0) {
+      if (burst && scanned % 25 === 0) {
         await withStore((s) => {
           s.burns = { ...s.burns, ...burns };
         });
@@ -144,7 +155,7 @@ export async function runScanPass() {
   freshTape.push(...detectLaunches(store.seenMints, namedCoins, now));
   freshTape.push(...detectMigrations(store.mintStatus, namedCoins, now));
 
-  const staleDex = burst
+  const staleDex = burst || catchup
     ? []
     : visible
         .map((c) => c.mint)
@@ -210,8 +221,9 @@ export async function runScanPass() {
   const officialOrder = [...scored].sort((a, b) => b.official - a.official);
 
   const hotMints = ranked.map((r) => r.mint);
-  const provMints = burst ? [] : nextEnrichMints(hotMints, store.provenance, 30 * 60 * 1000, enrichBudget("provenance"), now);
-  const holdMints = burst ? [] : nextEnrichMints(hotMints, store.holders, 15 * 60 * 1000, enrichBudget("holders"), now);
+  const skipSide = burst || catchup;
+  const provMints = skipSide ? [] : nextEnrichMints(hotMints, store.provenance, 30 * 60 * 1000, enrichBudget("provenance"), now);
+  const holdMints = skipSide ? [] : nextEnrichMints(hotMints, store.holders, 15 * 60 * 1000, enrichBudget("holders"), now);
   const provenance: typeof store.provenance = { ...store.provenance };
   const holders: typeof store.holders = { ...store.holders };
   const dossiers: Record<string, Dossier> = { ...store.dossiers };
@@ -300,7 +312,7 @@ export async function runScanPass() {
             officialRank: official || null,
             airdropMcap: airdropMcapUsd(coin?.priceUsd, coin?.airdropTotal),
             burned: burn?.verifiedBurn ?? null,
-            imageUrl: coin?.imageUrl ?? null,
+            imageUrl: imageUrlFrom(coin?.imageUrl),
             marketCap: dex[r.mint]?.live.marketCap ?? coin?.marketCapUsd ?? null,
             change24h: dex[r.mint]?.live.change24h ?? coin?.change24hPct ?? null,
             tier: coin ? mapTier(coin.tier) : undefined,
@@ -332,7 +344,8 @@ export async function runScanPass() {
     errors,
     wallets: batch.slice(0, scanned).map((t) => t.wallet),
     pending: Math.max(0, pending - scanned),
-    mode: burst ? "burst" : "cruise",
+    unfinished,
+    mode: burst ? "burst" : catchup ? "catchup" : "cruise",
     dex: Object.keys(dexFresh).length,
     lastWallet,
     tape: freshTape.length,

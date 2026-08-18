@@ -163,6 +163,7 @@ async function fetchHeliusBurns(
     reindex?: boolean;
     paceMs?: number;
     deadlineMs?: number;
+    maxPages?: number;
   },
 ) {
   const reindex =
@@ -175,7 +176,7 @@ async function fetchHeliusBurns(
     mode,
     cursor: reindex ? null : opts?.cursor ?? null,
     headSig: reindex ? null : opts?.headSig ?? null,
-    maxPages: heliusPageBudget(mode),
+    maxPages: opts?.maxPages ?? heliusPageBudget(mode),
     deadline: Date.now() + (opts?.deadlineMs ?? scanDeadlineMs()),
     reindex,
     paceMs: opts?.paceMs,
@@ -192,6 +193,7 @@ export async function fetchOnchainBurns(
     reindex?: boolean;
     paceMs?: number;
     deadlineMs?: number;
+    maxPages?: number;
   },
 ) {
   const indexed = await fetchHeliusBurns(wallet, opts).catch(() => null);

@@ -6,6 +6,7 @@ import { CoinThumb } from "@/components/coin-thumb";
 import { FlagChips } from "@/components/flag-chips";
 import { LiveNum } from "@/components/live-num";
 import { MiniStat, MiniStatGrid, changeClass } from "@/components/mini-stat";
+import { ScrambleText } from "@/components/scramble-text";
 import { useBoardPoll } from "@/components/use-board-poll";
 import { cn } from "@/lib/cn";
 import { launchStatusLabel } from "@/lib/format";
@@ -59,7 +60,9 @@ export function IndexBasket({
                   </span>
                   <CoinThumb src={c.imageUrl} label={c.ticker || c.name} />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm text-ink">{c.name}</span>
+                    <span className="block truncate text-sm text-ink">
+                      <ScrambleText text={c.name} />
+                    </span>
                     <span className="mt-0.5 block font-mono text-[11px] text-dim">
                       {[c.ticker ? `$${c.ticker}` : null, c.tier, status].filter(Boolean).join(" · ")}
                     </span>
@@ -69,7 +72,7 @@ export function IndexBasket({
               </div>
               <MiniStatGrid>
                 <MiniStat k="Score" v={<LiveNum value={c.score} format="usd" />} />
-                <MiniStat k="Official" v={<LiveNum value={c.officialRank} format="rank" />} />
+                <MiniStat k="Listed" v={<LiveNum value={c.officialRank} format="rank" />} />
                 <MiniStat k="Airdrop" v={<LiveNum value={c.airdropMcap} format="usd" />} />
                 <MiniStat k="Burned" v={<LiveNum value={c.burned} format="compact" />} />
                 <MiniStat k="Mcap" v={<LiveNum value={c.marketCap} format="usd" />} />

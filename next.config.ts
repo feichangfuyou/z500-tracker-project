@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
+const isDev = process.env.NODE_ENV === "development";
+const scriptSrc = `'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`;
+
 const security = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -9,15 +12,18 @@ const security = [
 ];
 
 const csp =
-  "default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; media-src 'self' blob:; frame-ancestors 'none'";
+  `default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; media-src 'self' blob:; frame-src https://dexscreener.com https://www.dexscreener.com; frame-ancestors 'none'`;
 const cspEmbed =
-  "default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; media-src 'self' blob:; frame-ancestors *";
+  `default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; media-src 'self' blob:; frame-ancestors *`;
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "ipfs.io", pathname: "/ipfs/**" },
+      { protocol: "https", hostname: "gateway.pinata.cloud", pathname: "/ipfs/**" },
+      { protocol: "https", hostname: "*.mypinata.cloud", pathname: "/ipfs/**" },
+      { protocol: "https", hostname: "cdn.dexscreener.com", pathname: "/cms/images/**" },
       { protocol: "https", hostname: "ansem.io", pathname: "/api/banners/**" },
     ],
   },

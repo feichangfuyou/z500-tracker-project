@@ -4,11 +4,13 @@ import type { Flag, Project } from "./types";
 export const EMBED_VARIANTS = ["card", "chip", "burn", "flags", "delta"] as const;
 export type EmbedVariant = (typeof EMBED_VARIANTS)[number];
 
+export const EMBED_CREDIT = "Powered by Crosscheck · launched on ansem.io";
+
 export const EMBED_SIZES: Record<EmbedVariant, { width: number; height: number; label: string }> = {
   chip: { width: 200, height: 40, label: "Tiny chip" },
-  burn: { width: 360, height: 72, label: "Verified burn" },
-  flags: { width: 360, height: 72, label: "Flags" },
-  delta: { width: 360, height: 72, label: "Official vs Crosscheck" },
+  burn: { width: 360, height: 88, label: "Verified burn" },
+  flags: { width: 360, height: 88, label: "Flags" },
+  delta: { width: 360, height: 88, label: "Listed vs Crosscheck" },
   card: { width: 360, height: 240, label: "Dossier card" },
 };
 
@@ -47,7 +49,7 @@ export function deltaLine(p: Pick<EmbedCoin, "officialRank" | "officialDelta">) 
   const ours = crosscheckRankFromDelta(p);
   const official = p.officialRank != null ? `#${p.officialRank}` : "—";
   const crosscheck = ours != null ? `#${ours}` : "—";
-  return `Official ${official} · Crosscheck ${crosscheck}`;
+  return `Listed ${official} · Crosscheck ${crosscheck}`;
 }
 
 export function flagLine(flags: Flag[]) {

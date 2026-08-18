@@ -81,4 +81,17 @@ describe("applyRanks", () => {
     expect(bravo?.officialDelta).toBeGreaterThan(0);
     expect(ranked[0].id).toBe("ansem:b");
   });
+
+  it("does not assign a listed rank when the feed is not ansem.io", () => {
+    const coin = project({
+      id: "ansem:a",
+      name: "Alpha",
+      mint: "mintA",
+      listedAirdropMcap: 1000,
+      live: live({ airdropMcap: 1000 }),
+    });
+    const ranked = applyRanks([coin], { at: 0, ranks: {} }, false);
+    expect(ranked[0]?.officialRank).toBeNull();
+    expect(ranked[0]?.officialDelta).toBeNull();
+  });
 });

@@ -1,5 +1,6 @@
 import { ansemCoinUrl } from "./links";
 import { CDN_CACHE_LONG } from "./http";
+import { publicImageUrl } from "./media";
 import type { BoardResponse, Project, TapeEvent } from "./types";
 
 export const PUBLIC_CORS = {
@@ -13,6 +14,9 @@ export const PUBLIC_HEADERS = {
   ...CDN_CACHE_LONG,
 };
 
+export const RANK_NOTE =
+  "officialRank is a listed-order estimate from public ansem.io inputs (airdrop value + boosts), not the unpublished z500 formula. score is a Crosscheck proxy that also uses verified burns.";
+
 export function publicCoin(p: Project) {
   return {
     mint: p.mint,
@@ -22,17 +26,21 @@ export function publicCoin(p: Project) {
     tier: p.tier,
     status: p.status || null,
     score: p.score,
+    scoreKind: "proxy" as const,
     officialRank: p.officialRank,
+    listedRank: p.officialRank,
     officialDelta: p.officialDelta,
+    rankBasis: "listed-inputs" as const,
     marketCap: p.live?.marketCap ?? null,
     airdropMcap: p.live?.airdropMcap ?? null,
     burned: p.verifiedBurn,
+    burnedComplete: Boolean(p.verifyExhausted),
     boostPoints: p.boostPoints,
     flags: p.flags,
     launchWallet: p.launchWallet,
     provenance: p.walletProvenance || "unknown",
-    imageUrl: p.imageUrl || null,
-    bannerUrl: p.bannerUrl || null,
+    imageUrl: publicImageUrl(p.imageUrl),
+    bannerUrl: publicImageUrl(p.bannerUrl),
     enhancedAt: p.enhancedAt || null,
     ansemUrl: ansemCoinUrl(p.slug),
     launchCount: p.launchCount || 0,
@@ -60,7 +68,7 @@ export function compactProject(p: Project): Project {
     mint: p.mint,
     tier: p.tier,
     launchWallet: p.launchWallet,
-    imageUrl: p.imageUrl || null,
+    imageUrl: publicImageUrl(p.imageUrl),
     status: p.status || null,
     burnAmount: 0,
     burnPriceRef: 0,

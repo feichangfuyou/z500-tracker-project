@@ -8,9 +8,12 @@ import {
   fetchPumpFallbackCoins,
   mapTier,
   activeBoost,
+  bannerUrlFrom,
+  imageUrlFrom,
   type AnsemBoost,
   type AnsemCoin,
 } from "./ansem";
+import { isListedFeed, paidPendingScans, uniqueVerifiedBurns } from "./coverage";
 import { fetchDexBatch, overlayDex, type DexLive } from "./dex";
 import { airdropMcapUsd, computeScore, officialDelta, officialScore, ranksFromOrder } from "./score";
 import { readStore } from "./store";
@@ -64,8 +67,8 @@ function boostFor(slug: string | undefined, boosts: Record<string, AnsemBoost>, 
   };
 }
 
-export function applyRanks(projects: Project[], snapshot: RankSnapshot): Project[] {
-  const ansem = projects.filter((p) => p.source === "ansem");
+export function applyRanks(projects: Project[], snapshot: RankSnapshot, listedFeed = true): Project[] {
+  const ansem = listedFeed ? projects.filter((p) => p.source === "ansem") : [];
   const official = ranksFromOrder(
     [...ansem]
       .sort((a, b) => officialScore(b) - officialScore(a) || a.name.localeCompare(b.name))
@@ -78,8 +81,8 @@ export function applyRanks(projects: Project[], snapshot: RankSnapshot): Project
   const boardRank = ranksFromOrder(scored.map((p) => p.id));
   return scored.map((p) => {
     const rank = boardRank[p.id] || 0;
-    const officialRank = p.source === "ansem" ? official[p.id] ?? null : null;
-    const vsOfficial = p.source === "ansem" ? crosscheckAnsem[p.id] || 0 : 0;
+    const officialRank = listedFeed && p.source === "ansem" ? official[p.id] ?? null : null;
+    const vsOfficial = listedFeed && p.source === "ansem" ? crosscheckAnsem[p.id] || 0 : 0;
     const prev = snapshot.ranks[p.mint];
     return {
       ...p,
@@ -189,8 +192,8 @@ async function assembleBoard(): Promise<BoardPayload> {
         mint: c.mint,
         tier: mapTier(c.tier),
         launchWallet: c.creatorWallet || null,
-        imageUrl: c.imageUrl || null,
-        bannerUrl: c.bannerUrl || null,
+        imageUrl: imageUrlFrom(c.imageUrl),
+        bannerUrl: bannerUrlFrom(c),
         enhancedAt: c.enhancedAt || null,
         status: c.status || null,
         airdropTotal: c.airdropTotal ?? null,
@@ -289,7 +292,8 @@ async function assembleBoard(): Promise<BoardPayload> {
     p.flags = projectFlags(p);
   }
 
-  const ranked = applyRanks(projects, store.rankSnapshot);
+  const ranked = applyRanks(projects, store.rankSnapshot, isListedFeed(feedSource));
+  const indexed = uniqueVerifiedBurns(store.burns);
 
   return {
     projects: ranked,
@@ -299,10 +303,13 @@ async function assembleBoard(): Promise<BoardPayload> {
       coins: ranked.length,
       airdroppedUsd: stats.airdroppedUsd,
       burnedAnsem: stats.burnedAnsem,
+      verifiedBurned: indexed.verifiedBurned,
       holders: stats.holders,
       boosted: ranked.filter((p) => p.boostPoints > 0).length,
       flagged: ranked.filter((p) => p.flags.some((f) => f.severity === "bad")).length,
-      scannedWallets: Object.keys(store.burns).length,
+      scannedWallets: indexed.scannedWallets,
+      exhaustedWallets: indexed.exhaustedWallets,
+      paidPending: paidPendingScans(ranked, store.burns),
       lastScanAt: store.scanCursor.at || null,
     },
     lastSynced: now,

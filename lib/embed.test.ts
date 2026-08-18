@@ -5,6 +5,7 @@ import {
   crosscheckRankFromDelta,
   deltaLine,
   embedPath,
+  EMBED_CREDIT,
   iframeSnippet,
   parseEmbedVariant,
 } from "./embed";
@@ -22,7 +23,7 @@ describe("iframeSnippet", () => {
     const html = iframeSnippet("https://x.test", "Mint1", "burn", 'Frog <script> "x"');
     expect(html).toContain('src="https://x.test/embed/Mint1?v=burn"');
     expect(html).toContain('width="360"');
-    expect(html).toContain('height="72"');
+    expect(html).toContain('height="88"');
     expect(html).not.toContain("<script>");
     expect(html).not.toContain('"x"');
   });
@@ -37,7 +38,8 @@ describe("badge copy", () => {
     expect(burnLine({ verifiedBurn: 12400 })).toContain("12.4K");
     expect(burnLine({ verifiedBurn: null })).toBe("Burns not verified");
     expect(crosscheckRankFromDelta({ officialRank: 8, officialDelta: 5 })).toBe(3);
-    expect(deltaLine({ officialRank: 8, officialDelta: 5 })).toBe("Official #8 · Crosscheck #3");
+    expect(deltaLine({ officialRank: 8, officialDelta: 5 })).toBe("Listed #8 · Crosscheck #3");
     expect(chipLine({ verifiedBurn: 10, officialRank: 1, officialDelta: 0, flags: [], ticker: "A", name: "A", mint: "m", slug: "a", score: 1 })).toContain("$ANSEM");
+    expect(EMBED_CREDIT).toContain("launched on ansem.io");
   });
 });

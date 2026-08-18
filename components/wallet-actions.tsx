@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Reveal } from "@/components/reveal";
+import { ScrambleText } from "@/components/scramble-text";
 
 export function WalletActions({
   wallet,
@@ -53,7 +54,7 @@ export function WalletActions({
           onClick={copy}
           className="type-btn h-8 border border-border px-3 text-muted hover:text-ink"
         >
-          {copied ? "Copied" : "Copy address"}
+          <ScrambleText text={copied ? "Copied" : "Copy address"} />
         </button>
         <button
           type="button"
@@ -61,7 +62,7 @@ export function WalletActions({
           disabled={verifying}
           className="type-btn h-8 border border-accent bg-accent px-3 font-semibold text-void disabled:opacity-40"
         >
-          {verifying ? "Checking…" : exhausted === false ? "Check older burns" : "Check burns"}
+          <ScrambleText text={verifying ? "Checking…" : exhausted === false ? "Check older burns" : "Check burns"} />
         </button>
       </div>
       <Reveal show={!!error}>

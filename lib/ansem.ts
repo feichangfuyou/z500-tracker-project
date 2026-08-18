@@ -1,3 +1,5 @@
+import { publicImageUrl } from "./media";
+
 const ANSEM = "https://ansem.io";
 
 export type AnsemCoin = {
@@ -30,14 +32,17 @@ type AnsemCoinDetail = AnsemCoin & {
   enhancedContent?: AnsemEnhanced | null;
 };
 
+export function imageUrlFrom(raw: string | null | undefined) {
+  return publicImageUrl(raw);
+}
+
 export function bannerUrlFrom(raw: {
   bannerUrl?: string | null;
   enhancedContent?: AnsemEnhanced | null;
 } | null | undefined): string | null {
   const url = raw?.enhancedContent?.bannerUrl || raw?.bannerUrl || null;
   if (!url || typeof url !== "string") return null;
-  const trimmed = url.trim();
-  return trimmed.startsWith("https://") ? trimmed : null;
+  return publicImageUrl(url);
 }
 
 export function enhancedAtFrom(raw: { enhancedAt?: string | null } | null | undefined): string | null {
@@ -180,7 +185,7 @@ export function mapPumpCoin(c: PumpCoin): AnsemCoin | null {
     slug: c.mint,
     name: c.name || c.symbol || "Unknown",
     ticker: c.symbol || "",
-    imageUrl: c.image_uri || null,
+    imageUrl: imageUrlFrom(c.image_uri),
     bannerUrl: bannerUrlFrom({ bannerUrl: c.banner_uri || null }),
     enhancedAt: null,
     tier: "free",

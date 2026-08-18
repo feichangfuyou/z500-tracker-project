@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageBack } from "@/components/page-back";
 import { SiteHeader } from "@/components/site-header";
+import { ScrambleText } from "@/components/scramble-text";
 import { WalletView } from "@/components/wallet-view";
 import { shortAddr } from "@/lib/format";
 import { isValidAddress } from "@/lib/guardrails";
@@ -31,7 +32,7 @@ function Missing({ message }: { message: string }) {
         <PageBack href="/wallets" />
         <p className="mt-4 text-sm text-muted">{message}</p>
         <Link href="/wallets" className="type-btn mt-4 inline-flex h-8 items-center border border-accent bg-accent px-4 font-semibold text-void">
-          Known wallets
+          <ScrambleText text="Known wallets" />
         </Link>
       </main>
     </div>

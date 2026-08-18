@@ -2,11 +2,21 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ExternalLink, FileText } from "lucide-react";
+import { ExternalLink, FileText, Plus, Search, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { BrandMark } from "@/components/brand-mark";
+import { ScrambleText } from "@/components/scramble-text";
 import { cn } from "@/lib/cn";
+import { useScramble } from "@/lib/scramble";
+import {
+  getHeaderChrome,
+  getHeaderChromeServer,
+  readHeaderChromeFromLocation,
+  setHeaderAdd,
+  setHeaderQuery,
+  subscribeHeaderChrome,
+} from "@/lib/header-chrome";
 
 const SITE_NAV_MENU_ID = "site-nav-menu";
 const DESKTOP_NAV = "(min-width: 1280px)";
@@ -14,6 +24,7 @@ const SHEET = { duration: 0.2, ease: "easeOut" } as const;
 
 const LINKS = [
   { href: "/", text: "Board" },
+  { href: "/radar", text: "Radar" },
   { href: "/guide", text: "Guide" },
   { href: "/index", text: "Index" },
   { href: "/wallets", text: "Wallets" },
@@ -29,47 +40,6 @@ function isCurrent(pathname: string, href: string) {
 
 function isExternal(link: (typeof LINKS)[number]) {
   return "external" in link;
-}
-
-const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*+/?<>";
-const SCRAMBLE_STEP_MS = 25;
-
-function useScramble(text: string) {
-  const [display, setDisplay] = useState(text);
-  const frame = useRef(0);
-
-  useEffect(() => {
-    setDisplay(text);
-  }, [text]);
-
-  useEffect(() => () => cancelAnimationFrame(frame.current), []);
-
-  const start = useCallback(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    cancelAnimationFrame(frame.current);
-    const began = performance.now();
-    const tick = (now: number) => {
-      const revealed = Math.floor((now - began) / SCRAMBLE_STEP_MS);
-      if (revealed >= text.length) {
-        setDisplay(text);
-        return;
-      }
-      let next = "";
-      for (let i = 0; i < text.length; i += 1) {
-        next += i < revealed || text[i] === " " ? text[i]! : SCRAMBLE_CHARS[(Math.random() * SCRAMBLE_CHARS.length) | 0]!;
-      }
-      setDisplay(next);
-      frame.current = requestAnimationFrame(tick);
-    };
-    frame.current = requestAnimationFrame(tick);
-  }, [text]);
-
-  const stop = useCallback(() => {
-    cancelAnimationFrame(frame.current);
-    setDisplay(text);
-  }, [text]);
-
-  return { display, start, stop };
 }
 
 function ScrambleNavLink({
@@ -139,6 +109,25 @@ function barLinkClass(pathname: string, href: string, external: boolean | undefi
   );
 }
 
+function HeaderSearch({ className, onSubmit }: { className?: string; onSubmit?: () => void }) {
+  const { query } = useSyncExternalStore(subscribeHeaderChrome, getHeaderChrome, getHeaderChromeServer);
+  return (
+    <label className={cn("search", className)}>
+      <span className="sr-only">Search</span>
+      <Search size={13} className="shrink-0 text-dim" />
+      <input
+        value={query}
+        onChange={(event) => setHeaderQuery(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") onSubmit?.();
+        }}
+        placeholder="Search name or ticker"
+        className="min-w-0 flex-1 bg-transparent font-mono text-base text-ink outline-none sm:text-[11px]"
+      />
+    </label>
+  );
+}
+
 function BurgerIcon({ open }: { open: boolean }) {
   const reduce = useReducedMotion();
   const t = reduce ? { duration: 0 } : SHEET;
@@ -171,10 +160,44 @@ export function SiteHeader({ children, className }: { children?: ReactNode; clas
   const headerRef = useRef<HTMLElement>(null);
   const burgerRef = useRef<HTMLButtonElement>(null);
   const sheet = reduce ? { duration: 0 } : SHEET;
+  const { addOpen } = useSyncExternalStore(subscribeHeaderChrome, getHeaderChrome, getHeaderChromeServer);
+  const home = pathname === "/";
 
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    readHeaderChromeFromLocation();
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!home) setHeaderAdd(false);
+  }, [home]);
+
+  const goSearch = useCallback(() => {
+    if (home) {
+      document.getElementById("board")?.scrollIntoView({ block: "start" });
+      return;
+    }
+    const params = new URLSearchParams();
+    const next = getHeaderChrome().query.trim();
+    if (next) params.set("q", next);
+    router.push(params.toString() ? `/?${params}` : "/");
+  }, [home, router]);
+
+  const goAdd = useCallback(() => {
+    if (home) {
+      setHeaderAdd(!getHeaderChrome().addOpen);
+      return;
+    }
+    setHeaderAdd(true);
+    const params = new URLSearchParams();
+    const next = getHeaderChrome().query.trim();
+    if (next) params.set("q", next);
+    params.set("add", "1");
+    router.push(`/?${params}`);
+  }, [home, router]);
 
   useEffect(() => {
     const mq = window.matchMedia(DESKTOP_NAV);
@@ -226,7 +249,16 @@ export function SiteHeader({ children, className }: { children?: ReactNode; clas
               exit={reduce ? undefined : { y: "-100%" }}
               transition={sheet}
             >
-              <div className="gutter-x mx-auto grid w-full max-w-[1400px] grid-cols-1 gap-px py-px min-[400px]:grid-cols-2">
+              <div className="gutter-x mx-auto w-full max-w-[1400px]">
+                <div className="bg-bg py-3 md:hidden">
+                  <HeaderSearch
+                    onSubmit={() => {
+                      goSearch();
+                      setMenuOpen(false);
+                    }}
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-px py-px min-[400px]:grid-cols-2">
                 {LINKS.map((link) => (
                   <ScrambleNavLink
                     key={link.href}
@@ -247,6 +279,7 @@ export function SiteHeader({ children, className }: { children?: ReactNode; clas
                     }}
                   />
                 ))}
+                </div>
               </div>
             </motion.nav>
           </div>
@@ -257,7 +290,7 @@ export function SiteHeader({ children, className }: { children?: ReactNode; clas
           <Link href="/" className="flex min-w-0 shrink items-center gap-2">
             <BrandMark className="size-7 shrink-0" />
             <span className="display hidden whitespace-nowrap text-[15px] leading-[13px] text-ink min-[360px]:inline">
-              CROSSCHECK
+              <ScrambleText text="CROSSCHECK" />
             </span>
           </Link>
           <nav className="hidden items-center gap-0.5 xl:flex" aria-label="Pages">
@@ -273,22 +306,32 @@ export function SiteHeader({ children, className }: { children?: ReactNode; clas
             ))}
           </nav>
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-4">
-            <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-4">
-              <Link
-                href="/guide"
-                prefetch
-                aria-label="Guide"
-                aria-current={isCurrent(pathname, "/guide") ? "page" : undefined}
-                onClick={() => setMenuOpen(false)}
-                className={cn(
-                  "grid size-10 shrink-0 place-items-center border border-border bg-panel text-muted hover:border-border-strong hover:text-ink sm:size-[31px]",
-                  isCurrent(pathname, "/guide") && "text-accent hover:text-accent",
-                )}
-              >
-                <FileText size={12} strokeWidth={1.6} />
-              </Link>
-              {children}
-            </div>
+            <Link
+              href="/guide"
+              prefetch
+              aria-label="Guide"
+              aria-current={isCurrent(pathname, "/guide") ? "page" : undefined}
+              onClick={() => setMenuOpen(false)}
+              className={cn(
+                "grid size-10 shrink-0 place-items-center border border-border bg-panel text-muted hover:border-border-strong hover:text-ink sm:size-[31px]",
+                isCurrent(pathname, "/guide") && "text-accent hover:text-accent",
+              )}
+            >
+              <FileText size={12} strokeWidth={1.6} />
+            </Link>
+            <HeaderSearch className="hidden min-w-0 max-w-[240px] flex-1 md:flex" onSubmit={goSearch} />
+            {children}
+            <button
+              type="button"
+              onClick={goAdd}
+              aria-label={home && addOpen ? "Cancel" : "Add a missing coin"}
+              className="type-btn inline-flex size-10 shrink-0 items-center justify-center border border-accent bg-accent font-semibold text-void hover:border-accent-hover hover:bg-accent-hover sm:size-auto sm:h-8 sm:gap-1.5 sm:px-3"
+            >
+              {home && addOpen ? <X size={12} /> : <Plus size={12} />}
+              <span className="hidden sm:inline">
+                <ScrambleText text={home && addOpen ? "Cancel" : "Add a coin"} />
+              </span>
+            </button>
             <button
               ref={burgerRef}
               type="button"

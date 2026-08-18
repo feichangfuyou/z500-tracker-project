@@ -5,7 +5,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { FlagChips } from "@/components/flag-chips";
 import { LiveNum } from "@/components/live-num";
 import { cn } from "@/lib/cn";
-import { crosscheckRankFromDelta, flagLine, type EmbedCoin, type EmbedVariant } from "@/lib/embed";
+import { EMBED_CREDIT, crosscheckRankFromDelta, flagLine, type EmbedCoin, type EmbedVariant } from "@/lib/embed";
 
 export function EmbedBadge({ project, variant }: { project: EmbedCoin; variant: Exclude<EmbedVariant, "card"> }) {
   if (variant === "chip") {
@@ -19,7 +19,7 @@ export function EmbedBadge({ project, variant }: { project: EmbedCoin; variant: 
             </>
           ) : project.officialRank != null ? (
             <>
-              off <LiveNum value={project.officialRank} format="rank" flash={false} />
+              listed <LiveNum value={project.officialRank} format="rank" flash={false} />
             </>
           ) : project.flags.length ? (
             flagLine(project.flags)
@@ -33,7 +33,7 @@ export function EmbedBadge({ project, variant }: { project: EmbedCoin; variant: 
 
   if (variant === "burn") {
     return (
-      <BadgeFrame className="h-[72px] w-full max-w-[360px] gap-3 px-3">
+      <BadgeFrame className="h-[88px] w-full max-w-[360px] gap-3 px-3">
         <BrandMark className="size-6 shrink-0" />
         <span className="min-w-0">
           <span className="type-eyebrow block">Verified burn</span>
@@ -46,6 +46,7 @@ export function EmbedBadge({ project, variant }: { project: EmbedCoin; variant: 
               </>
             )}
           </span>
+          <span className="mt-1 block truncate font-mono text-[9px] text-dim">{EMBED_CREDIT}</span>
         </span>
       </BadgeFrame>
     );
@@ -53,7 +54,7 @@ export function EmbedBadge({ project, variant }: { project: EmbedCoin; variant: 
 
   if (variant === "flags") {
     return (
-      <BadgeFrame className="h-[72px] w-full max-w-[360px] gap-3 px-3">
+      <BadgeFrame className="h-[88px] w-full max-w-[360px] gap-3 px-3">
         <BrandMark className="size-6 shrink-0" />
         <span className="min-w-0">
           <span className="type-eyebrow block">Flags</span>
@@ -64,6 +65,7 @@ export function EmbedBadge({ project, variant }: { project: EmbedCoin; variant: 
               <span className="font-mono text-sm text-muted">No flags</span>
             )}
           </span>
+          <span className="mt-1 block truncate font-mono text-[9px] text-dim">{EMBED_CREDIT}</span>
         </span>
       </BadgeFrame>
     );
@@ -71,15 +73,16 @@ export function EmbedBadge({ project, variant }: { project: EmbedCoin; variant: 
 
   const ours = crosscheckRankFromDelta(project);
   return (
-    <BadgeFrame className="h-[72px] w-full max-w-[360px] gap-3 px-3">
+    <BadgeFrame className="h-[88px] w-full max-w-[360px] gap-3 px-3">
       <BrandMark className="size-6 shrink-0" />
       <span className="min-w-0">
-        <span className="type-eyebrow block">Official vs Crosscheck</span>
+        <span className="type-eyebrow block">Listed vs Crosscheck</span>
         <span className="mt-1 block truncate font-mono text-sm tabular-nums text-ink">
-          Official <LiveNum value={project.officialRank} format="rank" reel />
+          Listed <LiveNum value={project.officialRank} format="rank" reel />
           {" · Crosscheck "}
           <LiveNum value={ours} format="rank" reel />
         </span>
+        <span className="mt-1 block truncate font-mono text-[9px] text-dim">{EMBED_CREDIT}</span>
       </span>
     </BadgeFrame>
   );

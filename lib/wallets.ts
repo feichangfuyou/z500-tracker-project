@@ -132,3 +132,17 @@ export function walletBestOfficial(row: WalletRow) {
 export function walletMismatchCount(row: WalletRow) {
   return row.coins.filter((c) => c.provenance === "mismatch" || c.flags.some((f) => f.id === "mismatch")).length;
 }
+
+export function walletLedger(rows: WalletRow[]) {
+  let launches = 0;
+  let serial = 0;
+  let diamond = 0;
+  let gold = 0;
+  for (const row of rows) {
+    launches += row.coins.length;
+    if (row.serial) serial += 1;
+    if (row.topTier === "Diamond") diamond += 1;
+    else if (row.topTier === "Gold") gold += 1;
+  }
+  return { wallets: rows.length, launches, serial, diamond, gold };
+}

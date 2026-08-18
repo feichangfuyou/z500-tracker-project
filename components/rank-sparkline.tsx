@@ -20,7 +20,7 @@ export function RankSparkline({ points }: { points: RankPoint[] }) {
   const last = points[points.length - 1]!;
   const first = points[0]!;
   const label = `Crosscheck rank moved from #${first.rank} to #${last.rank}${
-    last.officialRank != null ? `. Official now #${last.officialRank}` : ""
+    last.officialRank != null ? `. Listed now #${last.officialRank}` : ""
   }.`;
   const draw = reduce ? { duration: 0 } : { duration: 0.7, ease: "easeOut" as const };
 
@@ -60,7 +60,7 @@ export function RankSparkline({ points }: { points: RankPoint[] }) {
         </span>
         {last.officialRank != null && (
           <span>
-            <span className="text-dim">Official</span>{" "}
+            <span className="text-dim">Listed</span>{" "}
             <LiveNum value={last.officialRank} format="rank" />
           </span>
         )}

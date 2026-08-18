@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildBoard } from "@/lib/board";
-import { compactBoard, PUBLIC_CORS, PUBLIC_HEADERS, publicCoin } from "@/lib/public";
+import { compactBoard, PUBLIC_CORS, PUBLIC_HEADERS, publicCoin, RANK_NOTE } from "@/lib/public";
 import { limited, limitResponse } from "@/lib/limit";
 
 export const runtime = "nodejs";
@@ -17,6 +17,11 @@ export async function GET(req: Request) {
       {
         at: board.lastSynced,
         ansemPrice: board.ansemPrice,
+        rankBasis: "listed-inputs",
+        scoreKind: "proxy",
+        rankNote: RANK_NOTE,
+        listedBurned: board.stats.burnedAnsem,
+        verifiedBurned: board.stats.verifiedBurned,
         coins: board.projects.slice(0, 100).map(publicCoin),
       },
       { headers: PUBLIC_HEADERS },

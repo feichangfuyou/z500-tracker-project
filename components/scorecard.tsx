@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LiveNum } from "@/components/live-num";
 import { cn } from "@/lib/cn";
+import { ScrambleText } from "@/components/scramble-text";
 import { RUBRIC_MARK, type Rubric, type RubricMark } from "@/lib/rubric";
 
 function markClass(mark: RubricMark) {
@@ -28,7 +29,7 @@ export function Scorecard({ rubric }: { rubric: Rubric }) {
       <p className="mt-2 max-w-[40rem] text-pretty text-sm text-muted">
         Checks we ran on this launch. Not a buy rating.{" "}
         <Link href="/guide#scorecard" className="text-ink hover:text-gold-lit">
-          How this is graded
+          <ScrambleText text="How this is graded" />
         </Link>
         .
       </p>

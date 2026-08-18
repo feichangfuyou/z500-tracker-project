@@ -1,7 +1,7 @@
 import { compactBoard } from "@/lib/public";
 import { Tracker } from "@/components/tracker";
 import { buildBoard } from "@/lib/board";
-import type { BoardResponse } from "@/lib/types";
+import { EMPTY_BOARD_STATS, type BoardResponse } from "@/lib/types";
 
 export const revalidate = 20;
 
@@ -14,7 +14,7 @@ async function loadBoard(): Promise<BoardResponse> {
       projects: [],
       ansemPrice: null,
       solPrice: null,
-      stats: { coins: 0, airdroppedUsd: null, burnedAnsem: null, holders: null, boosted: 0, flagged: 0, scannedWallets: 0, lastScanAt: null },
+      stats: EMPTY_BOARD_STATS,
       lastSynced: Date.now(),
       sid: "",
       feedSource: "cache",

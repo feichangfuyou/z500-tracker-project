@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { projectFlags, riskScore } from "./flags";
+import { projectFlags, provenanceLabel, riskScore } from "./flags";
 import type { LiveData } from "./types";
 
 function live(partial: Partial<LiveData> = {}): LiveData {
@@ -31,9 +31,9 @@ const base = {
 };
 
 describe("projectFlags", () => {
-  it("flags a mismatched launch wallet", () => {
+  it("warns when listed wallet is not the mint-create wallet", () => {
     const flags = projectFlags({ ...base, walletProvenance: "mismatch" });
-    expect(flags.some((f) => f.id === "mismatch" && f.severity === "bad")).toBe(true);
+    expect(flags).toEqual([{ id: "mismatch", label: "Listed ≠ create", severity: "warn" }]);
   });
 
   it("flags concentrated holders", () => {
@@ -81,6 +81,15 @@ describe("projectFlags", () => {
     const bad = projectFlags({ ...base, launchCount: 8 });
     expect(warn.find((f) => f.id === "serial")?.severity).toBe("warn");
     expect(bad.find((f) => f.id === "serial")?.label).toBe("8 launches");
+  });
+});
+
+describe("provenanceLabel", () => {
+  it("names the comparison, not a verdict", () => {
+    expect(provenanceLabel("matched")).toBe("Same wallet");
+    expect(provenanceLabel("mismatch")).toBe("Different wallet");
+    expect(provenanceLabel("unknown")).toBe("Not checked");
+    expect(provenanceLabel(undefined)).toBe("Not checked");
   });
 });
 

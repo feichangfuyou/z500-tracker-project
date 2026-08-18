@@ -15,10 +15,12 @@ export const metadata: Metadata = {
 
 const API_FIELDS = [
   ["burned", "On-chain $ANSEM burned (verified window)"],
-  ["provenance", "matched / mismatch / unknown vs launch wallet"],
-  ["flags", "Wallet mismatch, sniper, thin liq, concentration"],
-  ["officialRank", "Where the coin sits on the official-like order"],
-  ["officialDelta", "Official # minus Crosscheck #"],
+  ["provenance", "API: matched / mismatch / unknown — listed vs creator wallet"],
+  ["flags", "Listed ≠ create, sniper, thin liq, concentration"],
+  ["officialRank", "Listed-order estimate from public ansem.io inputs — not z500"],
+  ["listedRank", "Same number as officialRank, clearer name"],
+  ["reasons", "On /api/public/radar: pending, partial, short, mismatch, serial, sniper"],
+  ["officialDelta", "Listed # minus Crosscheck #"],
   ["ansemUrl", "Official coin page on ansem.io, when a slug exists"],
 ];
 
@@ -84,6 +86,7 @@ export default async function PartnerPage({ searchParams }: { searchParams: Prom
           <pre className="mt-4 overflow-x-auto border border-border bg-panel p-3 font-mono text-[11px] text-muted">
             {`GET /api/public/coin/{mint}
 GET /api/public/board
+GET /api/public/radar
 GET /api/public/index`}
           </pre>
           <dl className="mt-6 divide-y divide-border border-t border-border">

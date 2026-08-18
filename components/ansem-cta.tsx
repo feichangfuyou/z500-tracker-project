@@ -1,4 +1,5 @@
 import { cn } from "@/lib/cn";
+import { ScrambleText } from "@/components/scramble-text";
 
 export function AnsemCta({
   href,
@@ -24,7 +25,7 @@ export function AnsemCta({
         className,
       )}
     >
-      {children}
+      <ScrambleText text={children} />
     </a>
   );
 }

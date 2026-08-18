@@ -29,11 +29,11 @@ Open [http://localhost:3000](http://localhost:3000). Moderation: [/mod](http://l
 - **Shared public board** — SQLite locally, Supabase `store_blob` when the env vars above are set.
 - **Discovery** — ansem.io `/api/coins`, then cached snapshot, then pump.fun, then DexScreener.
 - **Onchain burns** — Helius `type=BURN` indexer with resume (head + older pages). RPC 12/80 pages is failover when no Helius key.
-- **Wallet provenance** — mint create-tx (pump user / mint authority) first, pump.fun creator API second.
+- **Creator check** — listed launch wallet vs mint create-tx (pump user / mint authority) first, pump.fun creator API second. Different wallet is a warning, not a fail.
 - **Same-slot bundles** — create-window parse plus RugCheck sniper/insider flags.
 - **Boosts** — live ansem.io `/api/boosts` (expired dropped). Shown on the board and folded into score.
 - **Dex overlay** — circulating mcap / volume / liquidity from DexScreener, batched and cached. Listed mcap is fallback.
-- **z500 column** — official-like order (listed airdrop mcap + boosts) vs Crosscheck rank (adds verified burns).
+- **Listed vs Crosscheck** — Listed # uses public ansem.io inputs (airdrop mcap + boosts), not the unpublished z500 formula. Crosscheck rank adds verified burns.
 - **Score proxy** — airdropped-supply mcap + burn value + active boosts. Not the official index formula.
 - **Watchlist** — session cookie plus optional wallet key; merges with this browser's list.
 - **Coin dossier** — holders, create-tx, Dex chart, share card, OG image, embed iframe.
@@ -59,7 +59,7 @@ Session cookie `tracker_sid` plus an optional watch wallet. Details: `/privacy`.
 | pump.fun coin API | discovery fallback, creator hint | Medium — public, unofficial |
 | Solana RPC / Helius | onchain $ANSEM burns, mint create-tx, holders | High for the scanned window |
 | RugCheck | holder concentration, insider/sniper labels | Medium — third-party |
-| Score formula | ranking | Invented proxy |
+| Score formula | ranking | Invented proxy — not z500 |
 
 ## Files
 

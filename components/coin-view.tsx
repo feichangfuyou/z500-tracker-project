@@ -5,12 +5,15 @@ import Link from "next/link";
 import { useCallback, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AnsemCta } from "@/components/ansem-cta";
 import { CoinShareCard } from "@/components/coin-share-card";
+import { CoinThumb } from "@/components/coin-thumb";
 import { FlagChips } from "@/components/flag-chips";
 import { LiveNum, LiveShift } from "@/components/live-num";
 import { useBoardPoll } from "@/components/use-board-poll";
 import { PageBack } from "@/components/page-back";
+import { PriceChart } from "@/components/price-chart";
 import { RankSparkline } from "@/components/rank-sparkline";
 import { Reveal } from "@/components/reveal";
+import { ScrambleText } from "@/components/scramble-text";
 import { Scorecard } from "@/components/scorecard";
 import { SiteHeader } from "@/components/site-header";
 import { TapeStrip } from "@/components/tape-strip";
@@ -22,8 +25,9 @@ import { cn } from "@/lib/cn";
 import { iframeSnippet } from "@/lib/embed";
 import { fmtCompact, fmtPct, fmtPrice, fmtRank, fmtUsd, shortAddr } from "@/lib/format";
 import { isEnhanced } from "@/lib/ansem";
-import { ANSEM_AIRDROP, ansemCoinUrl, solscanAccount, solscanTx } from "@/lib/links";
-import { projectFlags } from "@/lib/flags";
+import { publicImageUrl } from "@/lib/media";
+import { ANSEM_AIRDROP, ansemCoinUrl, solscanAccount, solscanTx, tradeLinks } from "@/lib/links";
+import { projectFlags, provenanceLabel } from "@/lib/flags";
 import { projectRubric } from "@/lib/rubric";
 import { computeScore } from "@/lib/score";
 import { simulateBurn } from "@/lib/sim";
@@ -91,7 +95,12 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
         flags: row.flags?.length ? row.flags : prev.flags,
       }));
       setScores(incoming.projects.map((item) => ({ mint: item.mint, score: item.score })));
-      setTape((incoming.tape || []).filter((event) => event.mint === initial.project.mint));
+      setTape((prev) => {
+        const next = (incoming.tape || []).filter((event) => event.mint === initial.project.mint);
+        if (!next.length) return prev;
+        const seen = new Set(next.map((event) => event.id));
+        return [...next, ...prev.filter((event) => !seen.has(event.id))];
+      });
     },
     [initial.project.mint],
   );
@@ -213,30 +222,30 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
   const p = project;
   const history = initial.history.slice(-16);
   const ansem = ansemCoinUrl(p.slug);
+  const banner = publicImageUrl(p.bannerUrl);
   const rubric = useMemo(() => projectRubric(p, dossier), [p, dossier]);
 
   return (
-    <div className="min-h-dvh bg-bg pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-ink">
+    <div className="min-h-dvh bg-bg pb-[calc(2.5rem+env(safe-area-inset-bottom))] text-ink">
       <SiteHeader />
       <main className="gutter-x mx-auto w-full min-w-0 max-w-[1400px] py-6 sm:py-8">
         <p className="type-eyebrow flex flex-wrap items-center gap-x-3 gap-y-1">
           <PageBack href="/" />
           <span>
             <Link href="/" className="text-muted hover:text-ink">
-              Board
+              <ScrambleText text="Board" />
             </Link>
             <span className="text-dim"> / coin</span>
           </span>
         </p>
-        {p.bannerUrl ? (
+        {banner ? (
           <div className="relative mt-3 h-24 w-full overflow-hidden border border-border bg-raised sm:h-32">
             <Image
-              src={p.bannerUrl}
+              src={banner}
               alt=""
               fill
               sizes="(max-width: 1400px) 100vw, 1400px"
               className="object-cover"
-              unoptimized
               priority
               onError={() => setProject((prev) => ({ ...prev, bannerUrl: null }))}
             />
@@ -244,22 +253,16 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
         ) : null}
         <div className="mt-3 flex min-w-0 flex-col gap-3">
           <div className="flex min-w-0 items-start gap-3">
-          {p.imageUrl ? (
-            <Image
-              src={p.imageUrl}
-              alt=""
-              width={48}
-              height={48}
-              className="size-12 shrink-0 rounded-[3px] border border-border bg-raised object-cover"
-              unoptimized
-            />
-          ) : (
-            <span className="grid size-12 shrink-0 place-items-center rounded-[3px] border border-border bg-raised font-mono text-lg text-dim">
-              {(p.ticker || p.name).slice(0, 1)}
-            </span>
-          )}
+          <CoinThumb
+            src={p.imageUrl}
+            label={p.ticker || p.name}
+            size={48}
+            className="size-12 text-lg"
+          />
           <div className="min-w-0 flex-1">
-            <h1 className="display text-balance display-title text-ink">{p.name}</h1>
+            <h1 className="display text-balance display-title text-ink">
+              <ScrambleText text={p.name} />
+            </h1>
             <p className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-dim">
               <span>
                 {[p.ticker ? `$${p.ticker}` : null, p.tier || null, p.status ? p.status.replace("_", " ") : null]
@@ -292,7 +295,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
                 <FlagChips flags={p.flags} walletHref={p.launchWallet} />
                 <p className="mt-2">
                   <Link href="/guide#scorecard" className="font-mono text-[11px] text-dim hover:text-ink">
-                    How this is graded
+                    <ScrambleText text="How this is graded" />
                   </Link>
                 </p>
               </div>
@@ -304,7 +307,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
             onClick={toggleWatch}
             className="type-btn h-9 shrink-0 border border-border px-3 text-muted hover:text-ink sm:h-8"
           >
-            {watched ? "Watching" : "Watch"}
+            <ScrambleText text={watched ? "Watching" : "Watch"} />
           </button>
           {ansem ? (
             <AnsemCta href={ansem} primary>
@@ -315,7 +318,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
             href={`/partner?mint=${p.mint}`}
             className="type-btn grid h-9 place-items-center border border-border px-3 text-muted hover:text-ink sm:h-8"
           >
-            Embed
+            <ScrambleText text="Embed" />
           </a>
           <button
             type="button"
@@ -330,7 +333,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
             }}
             className="type-btn h-9 shrink-0 border border-border px-3 text-muted hover:text-ink sm:h-8"
           >
-            {copied ? "Copied" : "Copy iframe"}
+            <ScrambleText text={copied ? "Copied" : "Copy iframe"} />
           </button>
           </div>
         </div>
@@ -353,8 +356,10 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
             valueClass={(p.live?.change24h || 0) >= 0 ? "text-good" : "text-bad"}
           />
           <Stat k="Liq" v={<LiveNum value={p.live?.liquidity} format={fmtUsd} reel />} />
-          <Stat k="Official" v={<LiveNum value={p.officialRank} format={fmtRank} reel />} />
+          <Stat k="Listed" v={<LiveNum value={p.officialRank} format={fmtRank} reel />} />
         </dl>
+
+        <PriceChart name={p.name} dexUrl={p.live?.dexUrl || tradeLinks(p.mint, p.slug).dex} />
 
         <section className="mt-8 border-t border-border pt-6">
           <h2 className="type-eyebrow">Trade out</h2>
@@ -373,12 +378,12 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
             <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
               <Stat k="Launch" v={<WalletCell wallet={p.launchWallet} />} size="sm" />
               <Stat
-                k="Provenance"
-                v={p.walletProvenance || "unknown"}
+                k="Creator check"
+                v={provenanceLabel(p.walletProvenance)}
                 size="sm"
                 valueClass={
                   p.walletProvenance === "mismatch"
-                    ? "text-bad"
+                    ? "text-gold-lit"
                     : p.walletProvenance === "matched"
                       ? "text-good"
                       : "text-dim"
@@ -462,7 +467,9 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
                   disabled={verifying}
                   className="type-btn h-8 border border-accent bg-accent px-3 font-semibold text-void disabled:opacity-40"
                 >
-                  {verifying ? "Checking…" : p.verifiedBurn != null ? "Check burns" : "Verify burns"}
+                  <ScrambleText
+                    text={verifying ? "Checking…" : p.verifiedBurn != null ? "Check burns" : "Verify burns"}
+                  />
                 </button>
               )}
               <button
@@ -471,7 +478,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
                 disabled={checkingHolders}
                 className="type-btn h-8 border border-border px-3 text-muted disabled:opacity-40"
               >
-                {checkingHolders ? "Checking…" : "Holders"}
+                <ScrambleText text={checkingHolders ? "Checking…" : "Holders"} />
               </button>
             </div>
             <p className="mt-4 max-w-[40rem] break-all text-pretty text-[12.5px] text-dim">
@@ -572,15 +579,6 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
             )}
           </div>
           <CoinShareCard project={p} dossier={dossier} />
-        </section>
-
-        <section className="mt-8 border-t border-border pt-6">
-          <h2 className="type-eyebrow">Price</h2>
-          <iframe
-            title={`${p.name} DexScreener chart`}
-            src={`https://dexscreener.com/solana/${p.mint}?embed=1&theme=dark&trades=0&info=0`}
-            className="mt-3 h-[240px] w-full border border-border bg-void sm:h-[360px]"
-          />
         </section>
 
         <section className="mt-6 flex min-h-[var(--ticker-h)] items-center border-y border-border">

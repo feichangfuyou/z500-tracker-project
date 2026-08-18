@@ -3,6 +3,7 @@
 import { BrandMark } from "@/components/brand-mark";
 import { FlagChips } from "@/components/flag-chips";
 import { LiveNum } from "@/components/live-num";
+import { EMBED_CREDIT } from "@/lib/embed";
 import { fmtCompact, fmtRank, fmtUsd, shortAddr } from "@/lib/format";
 import { solscanTx } from "@/lib/links";
 import type { Dossier, Project } from "@/lib/types";
@@ -27,7 +28,7 @@ export function CoinShareCard({ project, dossier }: { project: Project; dossier:
           </dd>
         </div>
         <div>
-          <dt className="type-eyebrow">Official</dt>
+          <dt className="type-eyebrow">Listed</dt>
           <dd className="text-ink">
             <LiveNum value={p.officialRank} format={fmtRank} reel />
           </dd>
@@ -61,6 +62,7 @@ export function CoinShareCard({ project, dossier }: { project: Project; dossier:
           ) : null}
         </p>
       )}
+      <p className="mt-3 font-mono text-[9px] text-dim">{EMBED_CREDIT}</p>
     </aside>
   );
 }

@@ -7,6 +7,7 @@ import { FlagChips } from "@/components/flag-chips";
 import { LiveNum, LiveShift, type LiveNumFormatName } from "@/components/live-num";
 import { MiniStat, MiniStatGrid, changeClass } from "@/components/mini-stat";
 import { PageBack } from "@/components/page-back";
+import { ScrambleText } from "@/components/scramble-text";
 import { SiteHeader } from "@/components/site-header";
 import { TapeStrip } from "@/components/tape-strip";
 import { TimeAgo } from "@/components/time-ago";
@@ -44,22 +45,31 @@ export function WalletView({ initial }: { initial: WalletPayload }) {
           <PageBack href="/wallets" />
           <span>
             <Link href="/wallets" className="text-muted hover:text-ink">
-              Wallets
+              <ScrambleText text="Wallets" />
             </Link>
             <span className="text-dim"> / launch wallet</span>
           </span>
         </p>
         <div className="mt-4 flex min-w-0 flex-wrap items-start gap-4">
-          <div className="min-w-0 flex-1">
-            <h1 className="display display-title text-balance text-ink">{shortAddr(row.wallet)}</h1>
-            <p className="mt-2 break-all font-mono text-xs text-dim">{row.wallet}</p>
-            <p className="mt-2 text-pretty text-sm text-muted">
-              {row.topTier} ·{" "}
-              <LiveNum value={row.coins.length} format={(n) => serialLabel(Math.round(n ?? 0))} flash={false} />
-              {row.serial ? (
-                <span className={row.serial === "bad" ? "ml-2 text-bad" : "ml-2 text-gold-lit"}>serial</span>
-              ) : null}
-            </p>
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <span className="mt-1 flex shrink-0 items-center" aria-hidden>
+              {row.coins.slice(0, 4).map((c, i) => (
+                <span key={c.mint} className={cn(i > 0 && "-ml-1.5")}>
+                  <CoinThumb src={c.imageUrl} label={c.ticker || c.name} />
+                </span>
+              ))}
+            </span>
+            <div className="min-w-0">
+              <h1 className="display display-title text-balance text-ink">{shortAddr(row.wallet)}</h1>
+              <p className="mt-2 break-all font-mono text-xs text-dim">{row.wallet}</p>
+              <p className="mt-2 text-pretty text-sm text-muted">
+                {row.topTier} ·{" "}
+                <LiveNum value={row.coins.length} format={(n) => serialLabel(Math.round(n ?? 0))} flash={false} />
+                {row.serial ? (
+                  <span className={row.serial === "bad" ? "ml-2 text-bad" : "ml-2 text-gold-lit"}>serial</span>
+                ) : null}
+              </p>
+            </div>
           </div>
           <a
             href={solscanAccount(row.wallet)}
@@ -67,7 +77,7 @@ export function WalletView({ initial }: { initial: WalletPayload }) {
             rel="noopener noreferrer"
             className="type-btn grid h-8 place-items-center border border-border px-3 text-muted hover:text-ink"
           >
-            Solscan
+            <ScrambleText text="Solscan" />
           </a>
         </div>
 
@@ -75,7 +85,7 @@ export function WalletView({ initial }: { initial: WalletPayload }) {
           <Stat k="Launches" value={row.coins.length} format="int" />
           <Stat k="Burned" value={row.burned} format="compact" />
           <Stat k="Airdrop" value={airdropped || null} format="usd" />
-          <Stat k="Official" value={bestOfficial} format="rank" />
+          <Stat k="Listed" value={bestOfficial} format="rank" />
         </dl>
 
         <section className="mt-8 border-t border-border pt-6">
@@ -109,7 +119,9 @@ export function WalletView({ initial }: { initial: WalletPayload }) {
                       <CoinThumb src={c.imageUrl} label={c.ticker || c.name} />
                       <span className="min-w-0">
                         <span className="flex min-w-0 items-center gap-2">
-                          <span className="truncate text-sm text-ink">{c.name}</span>
+                          <span className="truncate text-sm text-ink">
+                            <ScrambleText text={c.name} />
+                          </span>
                           {c.boostPoints > 0 ? (
                             <span
                               className={cn(
@@ -139,7 +151,7 @@ export function WalletView({ initial }: { initial: WalletPayload }) {
                       className={changeClass(c.change24h)}
                     />
                     <MiniStat k="Score" v={<LiveNum value={c.score} format="usd" />} />
-                    <MiniStat k="Official" v={<OfficialRank coin={c} />} />
+                    <MiniStat k="Listed" v={<OfficialRank coin={c} />} />
                     <MiniStat k="Burned" v={<LiveNum value={c.burned} format="compact" />} />
                   </MiniStatGrid>
                 </li>

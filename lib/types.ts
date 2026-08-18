@@ -212,11 +212,28 @@ export type BoardStats = {
   coins: number;
   airdroppedUsd: number | null;
   burnedAnsem: number | null;
+  verifiedBurned: number;
   holders: number | null;
   boosted: number;
   flagged: number;
   scannedWallets: number;
+  exhaustedWallets: number;
+  paidPending: number;
   lastScanAt: number | null;
+};
+
+export const EMPTY_BOARD_STATS: BoardStats = {
+  coins: 0,
+  airdroppedUsd: null,
+  burnedAnsem: null,
+  verifiedBurned: 0,
+  holders: null,
+  boosted: 0,
+  flagged: 0,
+  scannedWallets: 0,
+  exhaustedWallets: 0,
+  paidPending: 0,
+  lastScanAt: null,
 };
 
 export type BoardResponse = {

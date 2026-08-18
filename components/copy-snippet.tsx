@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Reveal } from "@/components/reveal";
+import { ScrambleText } from "@/components/scramble-text";
 import { EMBED_SIZES, embedPath, iframeSnippet, type EmbedVariant } from "@/lib/embed";
 
 export function CopySnippet({
@@ -37,7 +38,7 @@ export function CopySnippet({
           }}
           className="type-btn h-9 shrink-0 border border-border px-3 text-muted hover:text-ink sm:h-8"
         >
-          {copied ? "Copied" : "Copy"}
+          <ScrambleText text={copied ? "Copied" : "Copy"} />
         </button>
       </div>
       <Reveal show={!!error}>

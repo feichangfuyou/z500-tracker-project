@@ -1,7 +1,15 @@
 import { INSIDER_BAD, INSIDER_WARN } from "./radar";
 import { effectiveBurn } from "./score";
-import type { Flag, Project } from "./types";
+import type { Flag, Project, ProvenanceStatus } from "./types";
 import { serialLabel, serialSeverity } from "./wallets";
+
+export const MISMATCH_LABEL = "Listed ≠ create";
+
+export function provenanceLabel(status: ProvenanceStatus | null | undefined) {
+  if (status === "matched") return "Same wallet";
+  if (status === "mismatch") return "Different wallet";
+  return "Not checked";
+}
 
 export const TOP10_WARN = 0.55;
 export const TOP10_BAD = 0.75;
@@ -27,7 +35,7 @@ export function projectFlags(p: FlagInput, now = Date.now()): Flag[] {
   const flags: Flag[] = [];
 
   if (p.walletProvenance === "mismatch") {
-    flags.push({ id: "mismatch", label: "Wallet mismatch", severity: "bad" });
+    flags.push({ id: "mismatch", label: MISMATCH_LABEL, severity: "warn" });
   }
 
   if (p.sniper) {

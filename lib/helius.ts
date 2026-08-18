@@ -82,31 +82,41 @@ export function heliusPageDone(batchLen: number, hitUntil: boolean, limit = HELI
   return hitUntil || batchLen < limit;
 }
 
-export function ansemBurnInHeliusTx(tx: HeliusTx, mint = ANSEM_MINT) {
-  const transfers = tx.tokenTransfers || [];
-  const typedBurn = (tx.type || "").toUpperCase() === "BURN";
+function burnFromTransfers(tx: HeliusTx, mint: string, typedBurn: boolean) {
   let total = 0;
-  for (const t of transfers) {
+  for (const t of tx.tokenTransfers || []) {
     if (t.mint !== mint) continue;
     const amt = Number(t.tokenAmount) || 0;
     if (!(amt > 0)) continue;
     if (typedBurn || !t.toUserAccount) total += amt;
   }
-  // Token-2022 burns often land as UNKNOWN with a negative balance change and
-  // no tokenTransfer row Helius would tag as BURN.
-  if (typedBurn || (tx.type || "").toUpperCase() === "UNKNOWN") {
-    for (const ad of tx.accountData || []) {
-      for (const ch of ad.tokenBalanceChanges || []) {
-        if (ch.mint !== mint) continue;
-        const raw = Number(ch.rawTokenAmount?.tokenAmount);
-        if (!(raw < 0)) continue;
-        const decimals = ch.rawTokenAmount?.decimals ?? ANSEM_DECIMALS;
-        total += Math.abs(raw) / 10 ** decimals;
-      }
+  return total;
+}
+
+function burnFromBalanceChanges(tx: HeliusTx, mint: string) {
+  let total = 0;
+  for (const ad of tx.accountData || []) {
+    for (const ch of ad.tokenBalanceChanges || []) {
+      if (ch.mint !== mint) continue;
+      const raw = Number(ch.rawTokenAmount?.tokenAmount);
+      if (!(raw < 0)) continue;
+      const decimals = ch.rawTokenAmount?.decimals ?? ANSEM_DECIMALS;
+      total += Math.abs(raw) / 10 ** decimals;
     }
   }
-  if (total > 1_000_000) total = total / 10 ** ANSEM_DECIMALS;
   return total;
+}
+
+export function ansemBurnInHeliusTx(tx: HeliusTx, mint = ANSEM_MINT) {
+  const kind = (tx.type || "").toUpperCase();
+  const typedBurn = kind === "BURN";
+  const fromTransfers = burnFromTransfers(tx, mint, typedBurn);
+  // Prefer the Helius transfer row when present so we do not double-count the
+  // matching negative balance change. UNKNOWN Token-2022 burns often have no
+  // transfer row — fall back to balance changes only then.
+  if (fromTransfers > 0) return fromTransfers;
+  if (typedBurn || kind === "UNKNOWN") return burnFromBalanceChanges(tx, mint);
+  return 0;
 }
 
 export function sumHeliusBurns(txs: HeliusTx[], mint = ANSEM_MINT) {

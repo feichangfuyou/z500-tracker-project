@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { PageBack } from "@/components/page-back";
 import { SiteHeader } from "@/components/site-header";
+import { ScrambleText } from "@/components/scramble-text";
 import { WalletList } from "@/components/wallet-list";
 import { buildBoard } from "@/lib/board";
 import { launchWallets } from "@/lib/wallets";
@@ -34,10 +35,10 @@ export default async function WalletsPage() {
             </p>
             <h1 className="display display-title mt-3 text-balance text-ink">Known wallets</h1>
             <p className="mt-4 max-w-[36rem] text-pretty text-sm text-muted">
-              These are the wallets that launched coins on this board. Gold and Diamond creators first, then wallets with
-              the most launches. Serial means five or more coins from the same launch wallet. Not a copy-trade product.{" "}
+              Launch wallets on this board, Gold and Diamond first. Serial is five or more coins from the same wallet.
+              Not a copy-trade product.{" "}
               <Link href="/guide" className="text-ink hover:text-gold-lit">
-                How to read this site
+                <ScrambleText text="How to read this site" />
               </Link>
               .
             </p>

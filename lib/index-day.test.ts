@@ -68,7 +68,7 @@ describe("daily index", () => {
           marketCap: 700,
           change24h: 4.2,
           imageUrl: "https://img/a.png",
-          flags: [{ id: "mismatch", label: "Wallet mismatch", severity: "bad" }],
+          flags: [{ id: "mismatch", label: "Listed ≠ create", severity: "warn" }],
         },
       ],
       at,

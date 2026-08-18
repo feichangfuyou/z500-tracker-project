@@ -40,6 +40,27 @@ describe("helius helpers", () => {
     };
     expect(ansemBurnInHeliusTx(tx)).toBe(277861);
   });
+
+  it("does not double-count a BURN transfer plus the matching balance change", () => {
+    const tx = {
+      type: "BURN",
+      tokenTransfers: [{ mint: ANSEM_MINT, tokenAmount: 12 }],
+      accountData: [
+        {
+          tokenBalanceChanges: [
+            { mint: ANSEM_MINT, rawTokenAmount: { tokenAmount: "-12000000", decimals: 6 } },
+          ],
+        },
+      ],
+    };
+    expect(ansemBurnInHeliusTx(tx)).toBe(12);
+  });
+
+  it("keeps a multi-million UI burn instead of treating it as raw units", () => {
+    expect(ansemBurnInHeliusTx({ type: "BURN", tokenTransfers: [{ mint: ANSEM_MINT, tokenAmount: 2_000_000 }] })).toBe(
+      2_000_000,
+    );
+  });
 });
 
 describe("burnIndexMode", () => {

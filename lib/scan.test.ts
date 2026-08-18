@@ -65,11 +65,12 @@ describe("nextScanTargets", () => {
       continue: burn({ wallet: "continue", exhausted: false, scannedAt: now - 1000 }),
     };
     const next = nextScanTargets(targets, burns, 10, now, true, true).map((t) => t.wallet);
-    expect(next).toContain("diamond");
-    expect(next).toContain("fresh");
-    expect(next).toContain("continue");
+    expect(next[0]).toBe("diamond");
+    expect(next[1]).toBe("fresh");
+    expect(next[2]).toBe("continue");
     expect(next).not.toContain("stale");
     expect(pendingFirstPass(targets, burns)).toBe(3);
     expect(scanBudget(200)).toBeGreaterThan(scanBudget(0));
+    expect(scanBudget(1)).toBeGreaterThanOrEqual(24);
   });
 });

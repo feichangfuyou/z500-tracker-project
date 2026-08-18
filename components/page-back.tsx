@@ -2,6 +2,7 @@
 
 import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { ScrambleText } from "@/components/scramble-text";
 
 export function PageBack({ href }: { href: string }) {
   const router = useRouter();
@@ -26,7 +27,7 @@ export function PageBack({ href }: { href: string }) {
       className="type-eyebrow inline-flex items-center gap-0.5 text-muted hover:text-ink"
     >
       <ChevronLeft size={12} strokeWidth={2} aria-hidden />
-      Back
+      <ScrambleText text="Back" />
     </button>
   );
 }

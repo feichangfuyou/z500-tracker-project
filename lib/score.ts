@@ -27,7 +27,7 @@ export function computeScore(
   return mcap * 0.6 + burnUsd * 40 + (p.boostPoints || 0) * BOOST_WEIGHT;
 }
 
-/** Public ansem.io inputs only — listed airdrop mcap + active boosts, no onchain burns. */
+/** Listed-order estimate from public ansem.io inputs. Not the unpublished z500 formula. */
 export function officialScore(p: {
   listedAirdropMcap?: number | null;
   listedMarketCap?: number | null;
@@ -45,7 +45,7 @@ export function ranksFromOrder(ids: string[]) {
   return ranks;
 }
 
-/** Positive = Crosscheck ranks the coin higher than the official-like order. */
+/** Positive = Crosscheck ranks the coin higher than the listed-order estimate. */
 export function officialDelta(officialRank: number | null | undefined, crosscheckRank: number) {
   if (!officialRank) return null;
   return officialRank - crosscheckRank;

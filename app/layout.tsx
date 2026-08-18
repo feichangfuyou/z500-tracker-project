@@ -18,7 +18,7 @@ const site = process.env.VERCEL_PROJECT_PRODUCTION_URL
 
 const title = "Crosscheck — unofficial ansem.io launch tracker";
 const description =
-  "Crosscheck is an unofficial tracker for coins launching on ansem.io. See market cap, on-chain $ANSEM burns, wallet checks, and warning flags. Not built or endorsed by ansem.io.";
+  "Crosscheck is an unofficial tracker for coins launching on ansem.io. See market cap, on-chain $ANSEM burns, listed vs create wallet, and warning flags. Not built or endorsed by ansem.io.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(site),

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { IndexBasket } from "@/components/index-basket";
 import { PageBack } from "@/components/page-back";
 import { SiteHeader } from "@/components/site-header";
+import { ScrambleText } from "@/components/scramble-text";
 import { buildBoard } from "@/lib/board";
 import { indexFromProjects, overlayLiveIndex } from "@/lib/index-day";
 import { readStore } from "@/lib/store";
@@ -44,7 +45,7 @@ export default async function IndexPage({ searchParams }: { searchParams: Promis
               Each UTC day we snapshot the top 25 coins by Crosscheck score — airdrop value, verified $ANSEM burns, and
               boosts. This is our basket, not ansem.io’s z500.{" "}
               <Link href="/guide" className="text-ink hover:text-gold-lit">
-                How to read this site
+                <ScrambleText text="How to read this site" />
               </Link>
               .
             </p>
@@ -54,7 +55,7 @@ export default async function IndexPage({ searchParams }: { searchParams: Promis
           <div className="mt-8">
             <p className="text-sm text-muted">No snapshot yet — wait for the next scan.</p>
             <Link href="/" className="type-btn mt-4 inline-flex h-8 items-center border border-accent bg-accent px-4 font-semibold text-void">
-              Open the board
+              <ScrambleText text="Open the board" />
             </Link>
           </div>
         ) : (

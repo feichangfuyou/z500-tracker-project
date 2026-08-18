@@ -86,7 +86,6 @@ html {
   background: var(--bg);
   color: var(--ink);
   overflow-x: clip;
-  overflow-y: auto;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -229,6 +228,10 @@ dialog::backdrop {
   border-color: var(--accent);
 }
 
+.search input:focus {
+  outline: none;
+}
+
 .btn-boost {
   display: inline-flex;
   height: 29px;
@@ -340,9 +343,16 @@ dialog::backdrop {
   color: var(--dim);
 }
 
+.board-scroll {
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
 .board-table {
   width: 100%;
-  min-width: 1120px;
+  min-width: 1632px;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
@@ -350,11 +360,14 @@ dialog::backdrop {
 
 .board-table th,
 .board-table td {
-  min-height: 56px;
-  height: 56px;
   padding: 0 12px;
   vertical-align: middle;
   line-height: 16px;
+}
+
+.board-table td {
+  height: 56px;
+  min-height: 56px;
 }
 
 .board-table tbody tr {
@@ -373,6 +386,10 @@ dialog::backdrop {
 }
 
 .board-table tbody td {
+  overflow: visible;
+}
+
+.board-table tbody td.coin {
   overflow: hidden;
 }
 
@@ -416,42 +433,24 @@ dialog::backdrop {
   }
 }
 
-.board-table col.rank { width: 44px; }
-.board-table col.coin { width: auto; }
-.board-table col.flags { width: 144px; }
-.board-table col.tier { width: 88px; }
-.board-table col.price { width: 108px; }
-.board-table col.n { width: 88px; }
-.board-table col.airdrop { width: 100px; }
-.board-table col.chg { width: 104px; }
-.board-table col.official { width: 104px; }
-.board-table col.watch { width: 200px; }
-
-@media (max-width: 1279px) {
-  .board-table col.rank { width: 40px; }
-  .board-table col.flags { width: 128px; }
-  .board-table col.tier { width: 80px; }
-  .board-table col.price { width: 80px; }
-  .board-table col.n { width: 72px; }
-  .board-table col.airdrop { width: 80px; }
-  .board-table col.chg { width: 88px; }
-  .board-table col.official { width: 84px; }
-  .board-table col.watch { width: 84px; }
-
-  .board-table th,
-  .board-table td {
-    padding: 0 8px;
-  }
-}
+.board-table col.rank { width: 96px; }
+.board-table col.coin { width: 260px; }
+.board-table col.flags { width: 168px; }
+.board-table col.tier { width: 92px; }
+.board-table col.price { width: 112px; }
+.board-table col.n { width: 100px; }
+.board-table col.airdrop { width: 108px; }
+.board-table col.chg { width: 100px; }
+.board-table col.official { width: 128px; }
+.board-table col.watch { width: 268px; }
 
 .board-table thead {
   background: var(--panel);
 }
 
 .board-table th {
-  position: sticky;
-  top: var(--header-h);
-  z-index: 2;
+  height: 36px;
+  min-height: 36px;
   background: var(--panel);
   box-shadow: 0 1px 0 var(--border);
   white-space: nowrap;
@@ -653,12 +652,12 @@ dialog::backdrop {
 }
 
 .hero-banner--wallets {
-  min-height: 148px;
+  min-height: 168px;
 }
 
 @media (min-width: 640px) {
   .hero-banner--wallets {
-    min-height: 172px;
+    min-height: 200px;
   }
 }
 
