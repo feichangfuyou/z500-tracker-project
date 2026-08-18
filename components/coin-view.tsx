@@ -32,9 +32,16 @@ import { projectFlags, provenanceLabel } from "@/lib/flags";
 import { projectRubric } from "@/lib/rubric";
 import { computeScore } from "@/lib/score";
 import { simulateBurn } from "@/lib/sim";
-import type { BoardResponse, Dossier, Project } from "@/lib/types";
+import type { BoardResponse, Dossier, LedgerHit, Project } from "@/lib/types";
 
 const watchListeners = new Set<() => void>();
+
+function mergeHits(prev: LedgerHit[], hits: LedgerHit[]) {
+  if (!hits.length) return prev;
+  const seen = new Set(prev.map((h) => h.signature));
+  const fresh = hits.filter((h) => h.signature && h.amount > 0 && !seen.has(h.signature));
+  return fresh.length ? [...fresh, ...prev].slice(0, 40) : prev;
+}
 
 function loadWatched(): string[] {
   return loadLocalWatches();
@@ -60,6 +67,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
   const [dossier, setDossier] = useState<Dossier | null>(initial.dossier);
   const [tape, setTape] = useState(initial.tape);
   const [scores, setScores] = useState(initial.scores);
+  const [burns, setBurns] = useState(initial.burns || []);
   const [extra, setExtra] = useState("10000");
   const [verifying, setVerifying] = useState(false);
   const [checkingHolders, setCheckingHolders] = useState(false);
@@ -102,6 +110,20 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
         const seen = new Set(next.map((event) => event.id));
         return [...next, ...prev.filter((event) => !seen.has(event.id))];
       });
+      setBurns((prev) =>
+        mergeHits(
+          prev,
+          (incoming.tape || [])
+            .filter((event) => event.kind === "burn" && event.mint === initial.project.mint && event.amount && event.id.startsWith("burn:"))
+            .map((event) => ({
+              signature: event.id.slice(5),
+              wallet: row.launchWallet || "",
+              amount: event.amount || 0,
+              at: event.at,
+              mint: initial.project.mint,
+            })),
+        ),
+      );
     },
     [initial.project.mint],
   );
@@ -167,6 +189,9 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
         next.score = computeScore({ ...next, burnPriceRef: initial.ansemPrice || p.burnPriceRef });
         return { ...next, flags: projectFlags(next) };
       });
+      if (Array.isArray(json.hits) && json.hits.length) {
+        setBurns((prev) => mergeHits(prev, json.hits as LedgerHit[]));
+      }
     } catch {
       setError("Couldn't reach Solana RPC — try again.");
     } finally {
@@ -482,6 +507,38 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
                 <ScrambleText text={checkingHolders ? "Checking…" : "Holders"} />
               </button>
             </div>
+            {burns.length ? (
+              <div className="mt-4 border-t border-border pt-3">
+                <h3 className="type-eyebrow">Burn ledger</h3>
+                <ol className="mt-1">
+                  {burns.slice(0, 12).map((hit) => (
+                    <li
+                      key={hit.signature}
+                      className="flex items-baseline justify-between gap-3 py-1.5 font-mono text-[12px] tabular-nums text-ink"
+                    >
+                      <a
+                        href={solscanTx(hit.signature)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="min-w-0 truncate text-muted hover:text-ink"
+                      >
+                        {shortAddr(hit.signature)}
+                      </a>
+                      <span className="shrink-0">
+                        <LiveNum value={hit.amount} format={fmtCompact} flash={false} />
+                        <span className="ml-2 text-dim">
+                          <TimeAgo at={hit.at} />
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ) : p.launchWallet ? (
+              <p className="mt-4 text-pretty text-[12.5px] text-dim">
+                No per-tx burns yet. Use Verify burns above, or wait for a live hit.
+              </p>
+            ) : null}
             <p className="mt-4 max-w-[40rem] text-pretty text-[12.5px] text-dim">
               Contract{" "}
               <a

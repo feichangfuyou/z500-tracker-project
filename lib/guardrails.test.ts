@@ -54,7 +54,9 @@ describe("wallet provenance", () => {
     expect(matchLaunchWallet("Aaa", "Bbb")).toBe("mismatch");
     expect(matchLaunchWallet("Aaa", null)).toBe("unknown");
   });
-  it("matches if any candidate equals the launch wallet", () => {
-    expect(matchLaunchWallet("Aaa", "Bbb", "Aaa")).toBe("matched");
+  it("does not call pump-only disagreement a mismatch", () => {
+    expect(matchLaunchWallet("Aaa", null, "Aaa")).toBe("matched");
+    expect(matchLaunchWallet("Aaa", null, "Bbb")).toBe("unknown");
+    expect(matchLaunchWallet("Aaa", "Bbb", "Aaa")).toBe("mismatch");
   });
 });

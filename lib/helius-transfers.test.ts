@@ -146,6 +146,39 @@ describe("indexTransferBurns", () => {
     expect(req.params[1].paginationToken).toBe("315073428:35:1:0:splTransfer");
   });
 
+  it("replaces a short head page that never hits the known signature", async () => {
+    process.env.SOLANA_RPC = "https://mainnet.helius-rpc.com/?api-key=test";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        rpcOk(
+          [
+            {
+              signature: "only",
+              type: "burn",
+              mint: ANSEM_MINT,
+              uiAmount: "370508",
+              toUserAccount: null,
+              fromUserAccount: "Wallet1",
+            },
+          ],
+          null,
+        ),
+      ),
+    );
+    const result = await indexTransferBurns("Wallet1", {
+      mode: "head",
+      headSig: "enhanced-tx-not-in-burn-stream",
+      cursor: "315073428:35:1:0:splTransfer",
+      maxPages: 2,
+      deadline: Date.now() + 10_000,
+    });
+    expect(result && "unavailable" in result).toBe(false);
+    if (!result || "unavailable" in result) return;
+    expect(result.verifiedBurn).toBe(370508);
+    expect(result.replace).toBe(true);
+  });
+
   it("marks Developer-only errors as unavailable", async () => {
     process.env.SOLANA_RPC = "https://mainnet.helius-rpc.com/?api-key=test";
     vi.stubGlobal(

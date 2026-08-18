@@ -19,7 +19,7 @@ describe("publicCoin", () => {
       boostPoints: 2,
       flags: [],
       launchWallet: "Wallet1111111111111111111111111111111111111",
-      walletProvenance: "match",
+      walletProvenance: "matched",
       imageUrl: null,
       bannerUrl: "https://ansem.io/api/banners/abc",
       enhancedAt: "2026-08-18T13:57:56.400Z",
@@ -27,7 +27,7 @@ describe("publicCoin", () => {
     expect(coin.mint).toContain("Mint");
     expect(coin.ticker).toBe("A");
     expect(coin.burned).toBe(9);
-    expect(coin.provenance).toBe("match");
+    expect(coin.provenance).toBe("matched");
     expect(coin.ansemUrl).toContain("/coin/alpha");
     expect(coin.launchCount).toBe(0);
     expect(coin.listedRank).toBe(3);
@@ -83,8 +83,9 @@ describe("publicCoin", () => {
           officialRank: 1,
           officialDelta: 0,
           score: 12,
-          flags: [],
+          flags: [{ id: "mismatch", label: "Listed ≠ create", severity: "warn" }],
           launchCount: 1,
+          walletProvenance: "mismatch",
         },
       ],
       ansemPrice: 0.2,
@@ -98,6 +99,7 @@ describe("publicCoin", () => {
     const row = slim.projects[0];
     expect(row?.name).toBe("Alpha");
     expect(row?.verifiedBurn).toBe(9);
+    expect(row?.walletProvenance).toBe("mismatch");
     expect(row?.live?.marketCap).toBe(100);
     expect(row?.live && "fdv" in row.live).toBe(false);
     expect(row && "bannerUrl" in row).toBe(false);

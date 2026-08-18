@@ -87,6 +87,7 @@ describe("projectFlags", () => {
 describe("provenanceLabel", () => {
   it("names the comparison, not a verdict", () => {
     expect(provenanceLabel("matched")).toBe("Same wallet");
+    expect(provenanceLabel("match")).toBe("Same wallet");
     expect(provenanceLabel("mismatch")).toBe("Different wallet");
     expect(provenanceLabel("unknown")).toBe("Not checked");
     expect(provenanceLabel(undefined)).toBe("Not checked");

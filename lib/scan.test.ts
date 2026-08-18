@@ -73,4 +73,27 @@ describe("nextScanTargets", () => {
     expect(scanBudget(200)).toBeGreaterThan(scanBudget(0));
     expect(scanBudget(1)).toBeGreaterThanOrEqual(24);
   });
+
+  it("reopens paid exhausted wallets within minutes so a bad add cannot sit", () => {
+    const burns = {
+      diamond: burn({ wallet: "diamond", exhausted: true, scannedAt: now - 6 * 60 * 1000, indexedBy: "helius" }),
+      continue: burn({ wallet: "continue", exhausted: true, scannedAt: now - 6 * 60 * 1000, indexedBy: "helius" }),
+    };
+    const next = nextScanTargets(targets, burns, 10, now).map((t) => t.wallet);
+    expect(next).toContain("diamond");
+    expect(next).not.toContain("continue");
+  });
+
+  it("recounts a doubled Diamond burn immediately", () => {
+    const burns = {
+      diamond: burn({
+        wallet: "diamond",
+        exhausted: true,
+        scannedAt: now - 1_000,
+        verifiedBurn: 741_016,
+        indexedBy: "helius",
+      }),
+    };
+    expect(nextScanTargets(targets, burns, 10, now).map((t) => t.wallet)[0]).toBe("diamond");
+  });
 });

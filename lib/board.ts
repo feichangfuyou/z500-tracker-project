@@ -13,7 +13,7 @@ import {
   type AnsemBoost,
   type AnsemCoin,
 } from "./ansem";
-import { isListedFeed, paidPendingScans, uniqueVerifiedBurns } from "./coverage";
+import { coverageMeter, isListedFeed, uniqueVerifiedBurns } from "./coverage";
 import { fetchDexBatch, overlayDex, type DexLive } from "./dex";
 import { airdropMcapUsd, computeScore, officialDelta, officialScore, ranksFromOrder } from "./score";
 import { readStore } from "./store";
@@ -294,6 +294,11 @@ async function assembleBoard(): Promise<BoardPayload> {
 
   const ranked = applyRanks(projects, store.rankSnapshot, isListedFeed(feedSource));
   const indexed = uniqueVerifiedBurns(store.burns);
+  const coverage = coverageMeter(ranked, store.burns, {
+    ledger: store.burnLedger,
+    webhookAt: store.webhookAt,
+    now,
+  });
 
   return {
     projects: ranked,
@@ -309,8 +314,14 @@ async function assembleBoard(): Promise<BoardPayload> {
       flagged: ranked.filter((p) => p.flags.some((f) => f.severity === "bad")).length,
       scannedWallets: indexed.scannedWallets,
       exhaustedWallets: indexed.exhaustedWallets,
-      paidPending: paidPendingScans(ranked, store.burns),
+      paidPending: coverage.paidPending,
+      paidWallets: coverage.paidWallets,
+      paidIndexed: coverage.paidIndexed,
+      paidExhausted: coverage.paidExhausted,
       lastScanAt: store.scanCursor.at || null,
+      lastBurnAt: coverage.lastBurnAt,
+      webhookAt: coverage.webhookAt,
+      coverageLive: coverage.coverageLive,
     },
     lastSynced: now,
     feedSource,
@@ -349,3 +360,10 @@ async function getBoard(live = false): Promise<BoardPayload> {
 
 /** Shared snapshot for page navigations. Live polls pass true to bypass the short TTL. */
 export const buildBoard = cache(async (live = false): Promise<BoardPayload> => getBoard(live));
+
+export function invalidateBoard() {
+  const memo = g.__crosscheckBoard;
+  if (!memo) return;
+  memo.at = 0;
+  memo.value = null;
+}

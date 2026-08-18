@@ -5,9 +5,16 @@ import { serialLabel, serialSeverity } from "./wallets";
 
 export const MISMATCH_LABEL = "Listed ≠ create";
 
-export function provenanceLabel(status: ProvenanceStatus | null | undefined) {
-  if (status === "matched") return "Same wallet";
-  if (status === "mismatch") return "Different wallet";
+export function publicProvenance(status: string | null | undefined): ProvenanceStatus {
+  if (status === "mismatch") return "mismatch";
+  if (status === "matched" || status === "match") return "matched";
+  return "unknown";
+}
+
+export function provenanceLabel(status: string | null | undefined) {
+  const normalized = publicProvenance(status);
+  if (normalized === "matched") return "Same wallet";
+  if (normalized === "mismatch") return "Different wallet";
   return "Not checked";
 }
 

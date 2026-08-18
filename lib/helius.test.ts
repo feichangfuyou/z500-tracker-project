@@ -167,6 +167,29 @@ describe("indexHeliusBurns", () => {
     expect(result?.headSig).toBe("new");
     expect(result?.cursor).toBe("old");
     expect(result?.exhausted).toBe(true);
+    expect(result?.replace).toBe(false);
+  });
+
+  it("replaces when a short head page never hits the known signature", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify([{ signature: "only", type: "BURN", tokenTransfers: [{ mint: ANSEM_MINT, tokenAmount: 370508 }] }]),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+    const result = await indexHeliusBurns("Wallet1", {
+      mode: "head",
+      headSig: "missing-from-burn-stream",
+      cursor: "old",
+      key: "k",
+      maxPages: 2,
+      deadline: Date.now() + 10_000,
+    });
+    expect(result?.verifiedBurn).toBe(370508);
+    expect(result?.replace).toBe(true);
   });
 
   it("treats a Helius 404 as an empty burn history", async () => {

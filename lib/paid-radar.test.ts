@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DIAMOND_BURN, GOLD_BURN, paidRadar, radarReasons, radarStats, tierBurnFloor } from "./paid-radar";
+import { DIAMOND_BURN, GOLD_BURN, looksDoubledBurn, paidRadar, radarReasons, radarStats, tierBurnFloor } from "./paid-radar";
 import type { Project } from "./types";
 
 function project(partial: Partial<Project> & Pick<Project, "name" | "mint" | "tier">): Project {
@@ -32,6 +32,14 @@ function project(partial: Partial<Project> & Pick<Project, "name" | "mint" | "ti
     ...partial,
   };
 }
+
+describe("looksDoubledBurn", () => {
+  it("catches exact 2× Diamond floor", () => {
+    expect(looksDoubledBurn(DIAMOND_BURN * 2)).toBe(true);
+    expect(looksDoubledBurn(DIAMOND_BURN)).toBe(false);
+    expect(looksDoubledBurn(0)).toBe(false);
+  });
+});
 
 describe("tierBurnFloor", () => {
   it("uses ansem.io Gold and Diamond thresholds", () => {

@@ -46,6 +46,18 @@ export function isPaidTier(tier: string): tier is "Gold" | "Diamond" {
   return tier === "Gold" || tier === "Diamond";
 }
 
+export function looksDoubledBurn(amount: number | null | undefined) {
+  if (!(amount && amount > 0)) return false;
+  const near = (value: number, floor: number) => Math.abs(value - floor) < 0.5;
+  if (near(amount, DIAMOND_BURN) || near(amount, GOLD_BURN)) return false;
+  for (const floor of [DIAMOND_BURN, GOLD_BURN]) {
+    const n = amount / floor;
+    const rounded = Math.round(n);
+    if (rounded >= 2 && Math.abs(n - rounded) < 1e-6) return true;
+  }
+  return false;
+}
+
 export function tierBurnFloor(tier: string): number | null {
   if (tier === "Diamond") return DIAMOND_BURN;
   if (tier === "Gold") return GOLD_BURN;

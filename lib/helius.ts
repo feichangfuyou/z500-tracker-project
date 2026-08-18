@@ -94,6 +94,16 @@ export function heliusPageDone(batchLen: number, hitUntil: boolean, limit = HELI
   return hitUntil || batchLen < limit;
 }
 
+/**
+ * Head scans must not add a full history when the known signature is missing
+ * from a short mint-filtered page — that is how Diamond burns got counted twice.
+ */
+export function headScanApply(hitUntil: boolean, reachedEnd: boolean, collected: number): "add" | "replace" | "skip" {
+  if (hitUntil || collected === 0) return "add";
+  if (reachedEnd) return "replace";
+  return "skip";
+}
+
 function burnFromTransfers(tx: HeliusTx, mint: string, typedBurn: boolean) {
   let total = 0;
   for (const t of tx.tokenTransfers || []) {
@@ -202,7 +212,8 @@ export async function indexHeliusBurns(
   let headSig = opts.headSig || null;
   let cursor = opts.cursor || null;
   let exhausted = opts.mode === "head";
-  let joined = opts.mode !== "head";
+  let hitUntil = opts.mode !== "head";
+  let reachedEnd = false;
   const collected: HeliusTx[] = [];
 
   for (let page = 0; page < maxPages && Date.now() < deadline; page += 1) {
@@ -212,12 +223,12 @@ export async function indexHeliusBurns(
       break;
     }
     if (!batch.length) {
+      reachedEnd = true;
       if (opts.mode !== "head") exhausted = true;
-      joined = true;
       break;
     }
     const sliced = takeUntilSig(batch, until);
-    if (sliced.hitUntil) joined = true;
+    if (sliced.hitUntil) hitUntil = true;
     if (opts.mode !== "older" && !headSig && sliced.txs[0]?.signature) headSig = sliced.txs[0].signature;
     if (opts.mode === "head" && sliced.txs[0]?.signature) headSig = sliced.txs[0].signature;
     collected.push(...sliced.txs);
@@ -226,25 +237,43 @@ export async function indexHeliusBurns(
       if (last) cursor = last;
     }
     if (heliusPageDone(batch.length, sliced.hitUntil)) {
+      if (!sliced.hitUntil) reachedEnd = true;
       if (opts.mode !== "head") exhausted = true;
-      joined = joined || sliced.hitUntil || batch.length < HELIUS_PAGE;
       break;
     }
     before = batch[batch.length - 1]?.signature;
-    if (!before) break;
+    if (!before) {
+      reachedEnd = true;
+      break;
+    }
     await sleep(opts.paceMs ?? 80);
   }
 
-  if (opts.mode === "head" && collected.length && !joined) {
+  if (opts.mode === "head") {
+    const apply = headScanApply(hitUntil, reachedEnd, collected.length);
+    if (apply === "skip") {
+      return {
+        verifiedBurn: 0,
+        txChecked: collected.length,
+        txBurned: 0,
+        cursor: opts.cursor || null,
+        exhausted: true,
+        headSig: opts.headSig || null,
+        events: [],
+        replace: false,
+        indexedBy: "helius",
+      };
+    }
+    const summed = sumHeliusBurns(collected);
     return {
-      verifiedBurn: 0,
-      txChecked: collected.length,
-      txBurned: 0,
+      verifiedBurn: summed.verifiedBurn,
+      txChecked: summed.txChecked,
+      txBurned: summed.txBurned,
       cursor: opts.cursor || null,
       exhausted: true,
-      headSig: opts.headSig || null,
-      events: [],
-      replace: Boolean(opts.reindex),
+      headSig,
+      events: summed.events,
+      replace: apply === "replace" || Boolean(opts.reindex),
       indexedBy: "helius",
     };
   }

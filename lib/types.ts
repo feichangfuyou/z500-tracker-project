@@ -149,6 +149,14 @@ export type BurnCache = {
   indexedBy?: "helius" | "rpc";
 };
 
+export type LedgerHit = {
+  signature: string;
+  wallet: string;
+  amount: number;
+  at: number;
+  mint?: string;
+};
+
 export type CommunityProject = {
   id: string;
   name: string;
@@ -219,7 +227,13 @@ export type BoardStats = {
   scannedWallets: number;
   exhaustedWallets: number;
   paidPending: number;
+  paidWallets: number;
+  paidIndexed: number;
+  paidExhausted: number;
   lastScanAt: number | null;
+  lastBurnAt: number | null;
+  webhookAt: number | null;
+  coverageLive: boolean;
 };
 
 export const EMPTY_BOARD_STATS: BoardStats = {
@@ -233,7 +247,13 @@ export const EMPTY_BOARD_STATS: BoardStats = {
   scannedWallets: 0,
   exhaustedWallets: 0,
   paidPending: 0,
+  paidWallets: 0,
+  paidIndexed: 0,
+  paidExhausted: 0,
   lastScanAt: null,
+  lastBurnAt: null,
+  webhookAt: null,
+  coverageLive: false,
 };
 
 export type BoardResponse = {
@@ -269,5 +289,7 @@ export type Store = {
   watches: Record<string, string[]>;
   dossiers: Record<string, Dossier>;
   indexDays: IndexDay[];
+  burnLedger: LedgerHit[];
+  webhookAt: number | null;
   scanLockUntil?: number;
 };

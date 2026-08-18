@@ -21,7 +21,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ mint: st
     return NextResponse.json({ error: "Not on the board." }, { status: 404, headers: PUBLIC_CORS });
   }
   return NextResponse.json(
-    { coin: publicCoin(payload.project), dossier: payload.dossier, history: payload.history.slice(-16) },
+    {
+      coin: publicCoin(payload.project),
+      dossier: payload.dossier,
+      history: payload.history.slice(-16),
+      burns: payload.burns.slice(0, 12).map((hit) => ({
+        signature: hit.signature,
+        amount: hit.amount,
+        at: hit.at,
+      })),
+    },
     { headers: PUBLIC_HEADERS },
   );
 }

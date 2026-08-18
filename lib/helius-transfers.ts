@@ -1,5 +1,6 @@
 import {
   burnIndexMode,
+  headScanApply,
   heliusApiKey,
   heliusPageBudget,
   heliusRpcUrl,
@@ -184,7 +185,8 @@ export async function indexTransferBurns(
   let headSig = opts.headSig || null;
   let cursor = resumeOlder ? opts.cursor || null : null;
   let exhausted = mode === "head";
-  let joined = mode !== "head";
+  let hitUntil = mode !== "head";
+  let reachedEnd = false;
   const collected: TransferRow[] = [];
 
   for (let page = 0; page < maxPages && Date.now() < deadline; page += 1) {
@@ -196,41 +198,58 @@ export async function indexTransferBurns(
     }
     const batch = fetched.page.data;
     if (!batch.length) {
+      reachedEnd = true;
       if (mode !== "head") exhausted = true;
-      joined = true;
       cursor = null;
       break;
     }
     const sliced = takeUntilSig(batch, until);
-    if (sliced.hitUntil) joined = true;
+    if (sliced.hitUntil) hitUntil = true;
     if (mode !== "older" && !headSig && sliced.rows[0]?.signature) headSig = sliced.rows[0].signature;
     if (mode === "head" && sliced.rows[0]?.signature) headSig = sliced.rows[0].signature;
     collected.push(...sliced.rows);
     if (mode !== "head") cursor = fetched.page.paginationToken;
-    if (sliced.hitUntil || !fetched.page.paginationToken || batch.length < TRANSFER_PAGE) {
+    const pageEnded = !fetched.page.paginationToken || batch.length < TRANSFER_PAGE;
+    if (sliced.hitUntil || pageEnded) {
+      if (pageEnded) reachedEnd = true;
       if (mode !== "head") exhausted = true;
-      joined = joined || sliced.hitUntil || !fetched.page.paginationToken;
       if (!fetched.page.paginationToken) cursor = null;
       break;
     }
     paginationToken = fetched.page.paginationToken || undefined;
     if (!paginationToken) {
+      reachedEnd = true;
       exhausted = mode !== "head";
       break;
     }
     await sleep(opts.paceMs ?? 50);
   }
 
-  if (mode === "head" && collected.length && !joined) {
+  if (mode === "head") {
+    const apply = headScanApply(hitUntil, reachedEnd, collected.length);
+    if (apply === "skip") {
+      return {
+        verifiedBurn: 0,
+        txChecked: collected.length,
+        txBurned: 0,
+        cursor: opts.cursor || null,
+        exhausted: true,
+        headSig: opts.headSig || null,
+        events: [],
+        replace: false,
+        indexedBy: "helius",
+      };
+    }
+    const summed = sumTransferBurns(collected);
     return {
-      verifiedBurn: 0,
-      txChecked: collected.length,
-      txBurned: 0,
+      verifiedBurn: summed.verifiedBurn,
+      txChecked: summed.txChecked,
+      txBurned: summed.txBurned,
       cursor: opts.cursor || null,
       exhausted: true,
-      headSig: opts.headSig || null,
-      events: [],
-      replace: false,
+      headSig,
+      events: summed.events,
+      replace: apply === "replace" || replace,
       indexedBy: "helius",
     };
   }

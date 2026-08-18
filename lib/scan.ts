@@ -1,7 +1,10 @@
 import { type BurnCache } from "./types";
+import { isPaidTier, looksDoubledBurn } from "./paid-radar";
 
 /** Head-refresh spacing after the first Helius pass is done. */
 export const CRUISE_STALE_MS = 6 * 60 * 60 * 1000;
+/** Paid Gold/Diamond recount so a bad add cannot sit on the radar. */
+export const PAID_REINDEX_MS = 5 * 60 * 1000;
 export const SCAN_PASS_MS = 250_000;
 
 const TIER_RANK: Record<string, number> = {
@@ -19,7 +22,7 @@ export type ScanTarget = {
   addedAt: number;
 };
 
-function freshness(burn: BurnCache | undefined, now: number, reindexLegacy = false, burst = false) {
+function freshness(burn: BurnCache | undefined, now: number, reindexLegacy = false, burst = false, tier = "Free") {
   if (reindexLegacy && burn && burn.indexedBy !== "helius") return 0;
   // Burst = cover every launch wallet once. Unseen first; unfinished resume after.
   if (burst) {
@@ -29,7 +32,9 @@ function freshness(burn: BurnCache | undefined, now: number, reindexLegacy = fal
   }
   if (burn && !burn.exhausted) return 0;
   if (!burn) return 1;
-  if (now - burn.scannedAt >= CRUISE_STALE_MS) return 2;
+  if (isPaidTier(tier) && looksDoubledBurn(burn.verifiedBurn)) return 0;
+  const staleMs = isPaidTier(tier) ? PAID_REINDEX_MS : CRUISE_STALE_MS;
+  if (now - burn.scannedAt >= staleMs) return 2;
   return 3;
 }
 
@@ -76,7 +81,7 @@ export function nextScanTargets(
       const burn = burns[t.wallet];
       return {
         ...t,
-        freshness: freshness(burn, now, reindexLegacy, burst),
+        freshness: freshness(burn, now, reindexLegacy, burst, t.tier),
         scannedAt: burn?.scannedAt || 0,
         tierRank: TIER_RANK[t.tier] ?? 5,
       };

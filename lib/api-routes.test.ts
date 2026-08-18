@@ -25,6 +25,7 @@ import { POST as postAirdrop } from "../app/api/airdrop/route";
 import { GET as getCron } from "../app/api/cron/scan/route";
 import { PUT as putWatch } from "../app/api/watch/route";
 import { GET as getAlerts, POST as postAlerts } from "../app/api/mod/alerts/route";
+import { POST as postWebhook } from "../app/api/webhooks/helius/route";
 
 function jsonRequest(url: string, body: unknown) {
   return new Request(url, {
@@ -79,6 +80,18 @@ describe("API validation", () => {
     } finally {
       if (prev === undefined) delete process.env.CRON_SECRET;
       else process.env.CRON_SECRET = prev;
+    }
+  });
+
+  it("rejects an unauthenticated Helius webhook", async () => {
+    const prev = process.env.HELIUS_WEBHOOK_SECRET;
+    process.env.HELIUS_WEBHOOK_SECRET = "hook-secret";
+    try {
+      const res = await postWebhook(new Request("http://localhost/api/webhooks/helius", { method: "POST", body: "[]" }));
+      expect(res.status).toBe(401);
+    } finally {
+      if (prev === undefined) delete process.env.HELIUS_WEBHOOK_SECRET;
+      else process.env.HELIUS_WEBHOOK_SECRET = prev;
     }
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isListedFeed, paidPendingScans, uniqueVerifiedBurns } from "./coverage";
+import { coverageMeter, isListedFeed, paidPendingScans, uniqueVerifiedBurns } from "./coverage";
 import type { BurnCache, Project } from "./types";
 
 describe("isListedFeed", () => {
@@ -52,5 +52,29 @@ describe("paidPendingScans", () => {
       { tier: "Free", launchWallet: "w3" },
     ] as Project[];
     expect(paidPendingScans(projects, { w2: { wallet: "w2" } as BurnCache })).toBe(1);
+  });
+});
+
+describe("coverageMeter", () => {
+  it("counts paid wallets and live webhook age", () => {
+    const projects = [
+      { tier: "Gold", launchWallet: "w1" },
+      { tier: "Diamond", launchWallet: "w2" },
+      { tier: "Free", launchWallet: "w3" },
+    ] as Project[];
+    const burns = {
+      w1: { wallet: "w1", exhausted: true } as BurnCache,
+    };
+    const meter = coverageMeter(projects, burns, {
+      ledger: [{ signature: "s", wallet: "w1", amount: 1, at: 50 }],
+      webhookAt: 90,
+      now: 100,
+    });
+    expect(meter.paidWallets).toBe(2);
+    expect(meter.paidIndexed).toBe(1);
+    expect(meter.paidExhausted).toBe(1);
+    expect(meter.paidPending).toBe(1);
+    expect(meter.lastBurnAt).toBe(50);
+    expect(meter.coverageLive).toBe(true);
   });
 });

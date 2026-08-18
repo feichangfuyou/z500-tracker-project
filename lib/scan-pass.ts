@@ -1,7 +1,10 @@
 import { activeBoost, fetchAnsemBoosts, fetchAnsemCoins, fetchAnsemMarket, imageUrlFrom, mapTier, type AnsemBoost, type AnsemCoin } from "./ansem";
+import { alertContext, tapeForAlerts } from "./alert-filter";
+import { ingestWalletScan, namedLaunchForWallet } from "./burn-ledger";
 import { fetchDexBatch, overlayDex } from "./dex";
 import { enrichBudget, nextEnrichMints } from "./enrich";
 import { heliusApiKey } from "./helius";
+import { isPaidTier } from "./paid-radar";
 import { buildIndexDay, pushIndexDay } from "./index-day";
 import { notifyTape } from "./notify";
 import { resolveProvenance } from "./provenance";
@@ -10,8 +13,6 @@ import { dexRefreshBudget, heliusPaceMs, nextScanTargets, pendingFirstPass, scan
 import { fetchHolderRadar, fetchOnchainBurns } from "./solana";
 import { readStore, withStore } from "./store";
 import {
-  burnDeltaEvent,
-  burnEvents,
   detectBoostEvents,
   detectLaunches,
   detectMigrations,
@@ -49,10 +50,6 @@ export async function runScanPass(opts?: { maxMs?: number }) {
   }
   const visible = coins.filter((c) => !c.nsfw && c.mint !== ANSEM_MINT);
   const now = Date.now();
-  const byWallet = new Map<string, AnsemCoin>();
-  for (const c of visible) {
-    if (c.creatorWallet) byWallet.set(c.creatorWallet, c);
-  }
   const targets = [
     ...visible
       .filter((c) => c.creatorWallet)
@@ -91,10 +88,11 @@ export async function runScanPass(opts?: { maxMs?: number }) {
     burst,
   );
   const burns: Record<string, BurnCache> = { ...store.burns };
+  let ledger = store.burnLedger || [];
   let scanned = 0;
   let errors = 0;
   let lastWallet = store.scanCursor.lastWallet;
-  const freshTape: TapeEvent[] = [];
+  let freshTape: TapeEvent[] = [];
   const stopAt = Date.now() + (opts?.maxMs ?? SCAN_PASS_MS);
   const paceMs = heliusPaceMs(catchup ? 1 : 0);
 
@@ -103,11 +101,13 @@ export async function runScanPass(opts?: { maxMs?: number }) {
     const cached = burns[t.wallet];
     try {
       const firstTouch = !cached || cached.indexedBy !== "helius";
+      const reindexPaid = isPaidTier(t.tier) && Boolean(cached?.exhausted);
       const scan = await fetchOnchainBurns(t.wallet, {
         cursor: cached?.cursor,
         headSig: cached?.headSig,
-        continueOlder: Boolean(cached && !cached.exhausted),
+        continueOlder: Boolean(cached && !cached.exhausted) && !reindexPaid,
         indexedBy: cached?.indexedBy ?? null,
+        reindex: reindexPaid,
         paceMs,
         maxPages: burst && firstTouch ? 2 : undefined,
         deadlineMs: catchup ? (firstTouch ? 2_000 : 5_000) : undefined,
@@ -116,40 +116,26 @@ export async function runScanPass(opts?: { maxMs?: number }) {
         errors += 1;
         continue;
       }
-      const prevBurn = cached?.verifiedBurn || 0;
-      const wipe = Boolean(scan.replace && prevBurn > 0 && scan.txChecked === 0);
-      burns[t.wallet] = {
+      const named =
+        namedLaunchForWallet(t.wallet, visible, store.community) ||
+        coinName({ mint: t.mint || t.wallet, name: t.mint || t.wallet, ticker: "" });
+      const ingested = ingestWalletScan({
         wallet: t.wallet,
-        verifiedBurn: wipe ? prevBurn : scan.replace ? scan.verifiedBurn : prevBurn + scan.verifiedBurn,
-        txChecked: wipe ? cached?.txChecked || 0 : scan.replace ? scan.txChecked : (cached?.txChecked || 0) + scan.txChecked,
-        txBurned: wipe ? cached?.txBurned || 0 : scan.replace ? scan.txBurned : (cached?.txBurned || 0) + scan.txBurned,
-        scannedAt: Date.now(),
-        cursor: wipe ? cached?.cursor ?? scan.cursor : scan.cursor,
-        exhausted: wipe ? false : scan.exhausted,
-        headSig: wipe ? cached?.headSig ?? scan.headSig : scan.headSig,
-        indexedBy: wipe ? cached?.indexedBy : scan.indexedBy ?? cached?.indexedBy,
-      };
-      const coin =
-        byWallet.get(t.wallet) ||
-        store.community.find((p) => p.launchWallet === t.wallet) ||
-        coinName({ mint: t.mint, name: t.mint, ticker: "" });
-      const named = {
-        mint: "mint" in coin ? coin.mint : t.mint,
-        name: coin.name,
-        ticker: "ticker" in coin ? coin.ticker : undefined,
-        status: "status" in coin ? coin.status : null,
-        slug: "slug" in coin ? coin.slug : undefined,
-      };
-      if (scan.events.length) freshTape.push(...burnEvents(scan.events, named, Date.now()));
-      else {
-        const delta = burnDeltaEvent(scan.verifiedBurn, named, t.wallet, Date.now());
-        if (delta) freshTape.push(delta);
-      }
+        scan,
+        burns,
+        ledger,
+        tape: freshTape,
+        named,
+      });
+      Object.assign(burns, ingested.burns);
+      ledger = ingested.ledger;
+      freshTape = ingested.tape;
       scanned += 1;
       lastWallet = t.wallet;
       if (burst && scanned % 25 === 0) {
         await withStore((s) => {
           s.burns = { ...s.burns, ...burns };
+          s.burnLedger = ledger;
         });
       }
     } catch (err) {
@@ -236,7 +222,16 @@ export async function runScanPass(opts?: { maxMs?: number }) {
 
   const hotMints = ranked.map((r) => r.mint);
   const skipSide = burst || catchup;
-  const provMints = skipSide ? [] : nextEnrichMints(hotMints, store.provenance, 30 * 60 * 1000, enrichBudget("provenance"), now);
+  const paidMints = visible.filter((c) => isPaidTier(mapTier(c.tier))).map((c) => c.mint);
+  const provSeen = new Set<string>();
+  const provMints = [
+    ...nextEnrichMints(paidMints, store.provenance, 30 * 60 * 1000, paidMints.length, now),
+    ...(skipSide ? [] : nextEnrichMints(hotMints, store.provenance, 30 * 60 * 1000, enrichBudget("provenance"), now)),
+  ].filter((mint) => {
+    if (provSeen.has(mint)) return false;
+    provSeen.add(mint);
+    return true;
+  });
   const holdMints = skipSide ? [] : nextEnrichMints(hotMints, store.holders, 15 * 60 * 1000, enrichBudget("holders"), now);
   const provenance: typeof store.provenance = { ...store.provenance };
   const holders: typeof store.holders = { ...store.holders };
@@ -346,12 +341,22 @@ export async function runScanPass(opts?: { maxMs?: number }) {
     s.rankSnapshot = rankSnap;
     s.rankHistory = pushHistory(s.rankHistory || [], rankSnap);
     s.tape = pushTape(s.tape || [], freshTape);
+    s.burnLedger = ledger;
     s.seenMints = namedCoins.map((c) => c.mint);
     s.mintStatus = snapshotStatuses(namedCoins);
     if (coins.length) s.coinSnapshot = { at: finishedAt, coins };
   });
 
-  if (freshTape.length) notifyTape(freshTape).catch(() => undefined);
+  if (freshTape.length) {
+    const alerts = tapeForAlerts(
+      freshTape,
+      alertContext({
+        watches: store.watches,
+        coins: visible.map((c) => ({ mint: c.mint, tier: mapTier(c.tier) })),
+      }),
+    );
+    if (alerts.length) notifyTape(alerts).catch(() => undefined);
+  }
 
   return {
     scanned,

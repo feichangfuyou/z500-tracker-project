@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, readFileSync, existsSync } from "node:fs";
 import path from "node:path";
-import type { BoostSeen, BurnCache, CommunityProject, DexCache, Dossier, HolderCache, IndexDay, MintStatus, RankSnapshot, ScanCursor, Store, TapeEvent } from "./types";
+import type { BoostSeen, BurnCache, CommunityProject, DexCache, Dossier, HolderCache, IndexDay, MintStatus, RankSnapshot, ScanCursor, Store, TapeEvent, LedgerHit } from "./types";
 
 const DIR = process.env.VERCEL
   ? path.join("/tmp", "crosscheck-data")
@@ -185,6 +185,8 @@ type Extra = {
   watches: Record<string, string[]>;
   dossiers: Record<string, Dossier>;
   indexDays: IndexDay[];
+  burnLedger: LedgerHit[];
+  webhookAt: number | null;
 };
 
 const emptyExtra = (): Extra => ({
@@ -199,6 +201,8 @@ const emptyExtra = (): Extra => ({
   watches: {},
   dossiers: {},
   indexDays: [],
+  burnLedger: [],
+  webhookAt: null,
 });
 
 const empty = (): Store => ({
@@ -324,6 +328,8 @@ function load(opened: Db): Store {
           watches: parsed.watches || base.watches,
           dossiers: parsed.dossiers || base.dossiers,
           indexDays: parsed.indexDays || base.indexDays,
+          burnLedger: Array.isArray(parsed.burnLedger) ? parsed.burnLedger : base.burnLedger,
+          webhookAt: typeof parsed.webhookAt === "number" ? parsed.webhookAt : null,
         };
       } catch {
         return base;
@@ -433,6 +439,8 @@ function persist(opened: Db, store: Store) {
         boostSeen: store.boostSeen || {},
         dossiers: store.dossiers || {},
         indexDays: store.indexDays || [],
+        burnLedger: (store.burnLedger || []).slice(0, 300),
+        webhookAt: store.webhookAt || null,
       }),
     );
     pruneKeys(opened, "watches", "key", Object.keys(store.watches || {}));
@@ -471,6 +479,8 @@ function mergeStore(raw: unknown): Store {
     watches: s.watches || base.watches,
     dossiers: s.dossiers || base.dossiers,
     indexDays: s.indexDays || base.indexDays,
+    burnLedger: s.burnLedger || base.burnLedger,
+    webhookAt: s.webhookAt ?? base.webhookAt,
     rev: Number(s.rev) || 0,
   };
 }

@@ -29,10 +29,11 @@ export function shouldHideFromReports(reports: number, threshold = REPORT_HIDE_T
 
 export function matchLaunchWallet(
   launchWallet: string | null | undefined,
-  ...creators: Array<string | null | undefined>
+  onchain?: string | null,
+  pump?: string | null,
 ) {
   if (!launchWallet) return "unknown" as const;
-  const hits = creators.filter((c): c is string => Boolean(c));
-  if (!hits.length) return "unknown" as const;
-  return hits.includes(launchWallet) ? ("matched" as const) : ("mismatch" as const);
+  if (onchain) return onchain === launchWallet ? ("matched" as const) : ("mismatch" as const);
+  if (pump) return pump === launchWallet ? ("matched" as const) : ("unknown" as const);
+  return "unknown" as const;
 }

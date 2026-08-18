@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import { BASE58 } from "@/lib/format";
 import { readJson } from "@/lib/http";
 import { limited, limitResponse } from "@/lib/limit";
+import { ingestWalletScan, namedLaunchForWallet } from "@/lib/burn-ledger";
 import { fetchOnchainBurns } from "@/lib/solana";
 import { readStore, withStore } from "@/lib/store";
-import { burnDeltaEvent, burnEvents, pushTape } from "@/lib/tape";
-import type { TapeEvent } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 45;
@@ -24,7 +23,7 @@ export async function POST(req: Request) {
 
   const cached = (await readStore()).burns[wallet] || null;
   const fresh = Boolean(cached && Date.now() - cached.scannedAt < FRESH_MS && !body.deep);
-  if (fresh && cached?.exhausted) return NextResponse.json(cached);
+  if (fresh && cached?.exhausted) return NextResponse.json({ ...cached, hits: [] });
 
   try {
     const continueOlder = Boolean(body.deep || (cached && !cached.exhausted));
@@ -36,45 +35,25 @@ export async function POST(req: Request) {
       reindex: Boolean(body.deep),
     });
     const saved = await withStore((store) => {
-      const prev = store.burns[wallet];
-      const prevBurn = prev?.verifiedBurn || 0;
-      const wipe = Boolean(scan.replace && prevBurn > 0 && scan.txChecked === 0);
-      const next = {
+      const coins = (store.coinSnapshot.coins || []) as {
+        mint?: string;
+        name?: string;
+        ticker?: string;
+        slug?: string;
+        creatorWallet?: string;
+      }[];
+      const ingested = ingestWalletScan({
         wallet,
-        verifiedBurn: wipe ? prevBurn : scan.replace ? scan.verifiedBurn : prevBurn + scan.verifiedBurn,
-        txChecked: wipe ? prev?.txChecked || 0 : scan.replace ? scan.txChecked : (prev?.txChecked || 0) + scan.txChecked,
-        txBurned: wipe ? prev?.txBurned || 0 : scan.replace ? scan.txBurned : (prev?.txBurned || 0) + scan.txBurned,
-        scannedAt: Date.now(),
-        cursor: wipe ? prev?.cursor ?? scan.cursor : scan.cursor,
-        exhausted: wipe ? false : scan.exhausted,
-        headSig: wipe ? prev?.headSig ?? scan.headSig : scan.headSig,
-        indexedBy: wipe ? prev?.indexedBy : scan.indexedBy ?? prev?.indexedBy,
-      };
-      store.burns[wallet] = next;
-      if (scan.events.length || scan.verifiedBurn > 0) {
-        const coins = (store.coinSnapshot.coins || []) as {
-          mint?: string;
-          name?: string;
-          ticker?: string;
-          slug?: string;
-          creatorWallet?: string;
-        }[];
-        const coin =
-          coins.find((c) => c.creatorWallet === wallet) ||
-          store.community.find((p) => p.launchWallet === wallet);
-        const named = {
-          mint: coin?.mint || wallet,
-          name: coin?.name || "Unknown",
-          ticker: coin && "ticker" in coin ? coin.ticker : undefined,
-          slug: coin && "slug" in coin ? coin.slug : undefined,
-          status: null,
-        };
-        const events: TapeEvent[] = scan.events.length
-          ? burnEvents(scan.events, named)
-          : [burnDeltaEvent(scan.verifiedBurn, named, wallet)].filter((e): e is TapeEvent => Boolean(e));
-        store.tape = pushTape(store.tape || [], events);
-      }
-      return next;
+        scan,
+        burns: store.burns,
+        ledger: store.burnLedger || [],
+        tape: store.tape || [],
+        named: namedLaunchForWallet(wallet, coins, store.community),
+      });
+      store.burns = ingested.burns;
+      store.burnLedger = ingested.ledger;
+      store.tape = ingested.tape;
+      return { ...ingested.cache, hits: ingested.fresh };
     });
     return NextResponse.json(saved);
   } catch (err) {

@@ -1,4 +1,5 @@
 import { ansemCoinUrl } from "./links";
+import { publicProvenance } from "./flags";
 import { CDN_CACHE_LONG } from "./http";
 import { publicImageUrl } from "./media";
 import type { BoardResponse, Project, TapeEvent } from "./types";
@@ -38,7 +39,7 @@ export function publicCoin(p: Project) {
     boostPoints: p.boostPoints,
     flags: p.flags,
     launchWallet: p.launchWallet,
-    provenance: p.walletProvenance || "unknown",
+    provenance: publicProvenance(p.walletProvenance),
     imageUrl: publicImageUrl(p.imageUrl),
     bannerUrl: publicImageUrl(p.bannerUrl),
     enhancedAt: p.enhancedAt || null,
@@ -85,6 +86,8 @@ export function compactProject(p: Project): Project {
     fetchError: p.fetchError,
     rankDelta: p.rankDelta,
     holderTop10Pct: p.holderTop10Pct,
+    sniper: p.sniper,
+    walletProvenance: p.walletProvenance,
     boostPoints: p.boostPoints,
     boostGolden: p.boostGolden,
     boostExpiresAt: p.boostExpiresAt,
