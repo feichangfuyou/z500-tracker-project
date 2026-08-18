@@ -410,6 +410,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
   const safePage = Math.min(page, pageCount);
   const shown = filtered.slice((safePage - 1) * PAGE, safePage * PAGE);
   const rankStart = (safePage - 1) * PAGE;
+  const rankDigits = String(Math.max(filtered.length, board.stats.coins || 0, 1)).length;
   const movers = board.projects
     .filter((p) => p.live?.change24h != null)
     .sort((a, b) => Math.abs(b.live?.change24h || 0) - Math.abs(a.live?.change24h || 0))
@@ -861,7 +862,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
           id="board"
           className="mt-6 scroll-mt-[calc(var(--header-h)+0.5rem)] border-b border-border pb-3"
         >
-          <div className="flex w-full min-w-0 flex-col gap-3 overflow-x-clip sm:flex-row sm:items-center">
+          <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
             <div className="chip-scroll min-w-0 flex-1">
               <div className="chip-scroll__row">
               {FEEDS.map((f) => (
@@ -884,8 +885,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
               ))}
               </div>
             </div>
-            <div className="flex w-full shrink-0 items-center gap-2 sm:ml-auto sm:w-auto">
-            <div className="grid w-full grid-cols-2 gap-1 min-[400px]:flex min-[400px]:h-[31px] min-[400px]:flex-none min-[400px]:items-center min-[400px]:border min-[400px]:border-border min-[400px]:p-[3px]">
+            <div className="grid w-full grid-cols-2 gap-1 min-[400px]:ml-auto min-[400px]:flex min-[400px]:h-[31px] min-[400px]:w-auto min-[400px]:flex-none min-[400px]:items-center min-[400px]:border min-[400px]:border-border min-[400px]:p-[3px]">
                 <button
                   type="button"
                   onClick={() => setAuto((v) => !v)}
@@ -928,22 +928,18 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                 >
                   <ScrambleText text="Score" />
                 </button>
-              </div>
-              <div className="hidden h-9 shrink-0 items-center border border-border p-[3px] md:flex md:h-[31px]">
                 <button
                   type="button"
                   aria-pressed={view === "grid"}
                   aria-label="Grid view"
                   onClick={() => setBoardView("grid")}
                   className={cn(
-                    "type-btn inline-flex h-full min-h-0 items-center gap-1.5 whitespace-nowrap px-2.5 sm:px-3",
+                    "type-btn hidden h-full min-h-0 items-center justify-center gap-1.5 whitespace-nowrap px-2.5 md:inline-flex min-[400px]:flex-none min-[400px]:px-3",
                     view === "grid" ? "bg-accent text-void" : "text-muted hover:text-ink",
                   )}
                 >
                   <LayoutGrid size={12} />
-                  <span className="hidden min-[420px]:inline">
-                    <ScrambleText text="Grid" />
-                  </span>
+                  <ScrambleText text="Grid" />
                 </button>
                 <button
                   type="button"
@@ -951,16 +947,13 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                   aria-label="Table view"
                   onClick={() => setBoardView("table")}
                   className={cn(
-                    "type-btn inline-flex h-full min-h-0 items-center gap-1.5 whitespace-nowrap px-2.5 sm:px-3",
+                    "type-btn hidden h-full min-h-0 items-center justify-center gap-1.5 whitespace-nowrap px-2.5 md:inline-flex min-[400px]:flex-none min-[400px]:px-3",
                     view === "table" ? "bg-accent text-void" : "text-muted hover:text-ink",
                   )}
                 >
                   <List size={12} />
-                  <span className="hidden min-[420px]:inline">
-                    <ScrambleText text="Table" />
-                  </span>
+                  <ScrambleText text="Table" />
                 </button>
-              </div>
             </div>
           </div>
           <Reveal show={feed === "watching"} className="mt-3 flex min-w-0 items-center">
@@ -1247,7 +1240,10 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                 view === "table" ? "hidden md:block" : "hidden",
               )}
             >
-              <table className="board-table text-sm">
+              <table
+                className="board-table text-sm"
+                style={{ "--board-rank-digits": String(rankDigits) } as CSSProperties}
+              >
                 <colgroup>
                   <col className="rank" />
                   <col className="coin" />

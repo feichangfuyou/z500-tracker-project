@@ -7,7 +7,7 @@ import { heliusApiKey } from "./helius";
 import { isPaidTier } from "./paid-radar";
 import { buildIndexDay, pushIndexDay } from "./index-day";
 import { notifyTape } from "./notify";
-import { resolveProvenance } from "./provenance";
+import { provenanceCacheForEnrich, resolveProvenance } from "./provenance";
 import { airdropMcapUsd, computeScore, officialScore, ranksFromOrder } from "./score";
 import { dexRefreshBudget, heliusPaceMs, nextScanTargets, pendingFirstPass, scanBudget, SCAN_PASS_MS } from "./scan";
 import { fetchHolderRadar, fetchOnchainBurns } from "./solana";
@@ -224,9 +224,10 @@ export async function runScanPass(opts?: { maxMs?: number }) {
   const skipSide = burst || catchup;
   const paidMints = visible.filter((c) => isPaidTier(mapTier(c.tier))).map((c) => c.mint);
   const provSeen = new Set<string>();
+  const provCache = provenanceCacheForEnrich(store.provenance);
   const provMints = [
-    ...nextEnrichMints(paidMints, store.provenance, 30 * 60 * 1000, paidMints.length, now),
-    ...(skipSide ? [] : nextEnrichMints(hotMints, store.provenance, 30 * 60 * 1000, enrichBudget("provenance"), now)),
+    ...nextEnrichMints(paidMints, provCache, 30 * 60 * 1000, paidMints.length, now),
+    ...(skipSide ? [] : nextEnrichMints(hotMints, provCache, 30 * 60 * 1000, enrichBudget("provenance"), now)),
   ].filter((mint) => {
     if (provSeen.has(mint)) return false;
     provSeen.add(mint);

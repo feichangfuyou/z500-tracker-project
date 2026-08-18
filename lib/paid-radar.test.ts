@@ -63,7 +63,7 @@ describe("radarReasons", () => {
     ).toEqual([]);
   });
 
-  it("flags pending, under-floor, mismatch, serial, and sniper", () => {
+  it("flags pending, under-floor, serial, and sniper", () => {
     expect(radarReasons({ tier: "Gold", verifiedBurn: null, verifyExhausted: false }).map((r) => r.id)).toEqual([
       "pending",
     ]);
@@ -83,7 +83,7 @@ describe("radarReasons", () => {
         sniper: true,
         launchCount: 8,
       }).map((r) => r.id),
-    ).toEqual(["mismatch", "sniper", "serial"]);
+    ).toEqual(["sniper", "serial"]);
   });
 });
 
@@ -110,7 +110,7 @@ describe("paidRadar", () => {
         officialRank: 2,
       }),
     ]);
-    expect(rows.map((r) => r.name)).toEqual(["Gap", "Mismatch"]);
+    expect(rows.map((r) => r.name)).toEqual(["Gap"]);
     expect(rows[0]?.reasons[0]?.id).toBe("short");
     const stats = radarStats([
       project({ name: "Free", mint: "f", tier: "Free" }),
@@ -126,8 +126,8 @@ describe("paidRadar", () => {
       }),
     ]);
     expect(stats.paid).toBe(3);
-    expect(stats.flagged).toBe(2);
+    expect(stats.flagged).toBe(1);
     expect(stats.burnGaps).toBe(1);
-    expect(stats.mismatch).toBe(1);
+    expect(stats.mismatch).toBe(0);
   });
 });

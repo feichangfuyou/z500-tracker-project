@@ -102,7 +102,7 @@ export function compactProject(p: Project): Project {
 }
 
 function dropEmpty(key: string, value: unknown) {
-  if (key === "tape" || key === "alerts" || key === "projects") return value;
+  if (key === "tape" || key === "alerts" || key === "projects" || key === "walletProvenance") return value;
   if (value == null || value === false || value === "" || (Array.isArray(value) && value.length === 0)) {
     return undefined;
   }

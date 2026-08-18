@@ -31,9 +31,8 @@ const base = {
 };
 
 describe("projectFlags", () => {
-  it("warns when listed wallet is not the mint-create wallet", () => {
-    const flags = projectFlags({ ...base, walletProvenance: "mismatch" });
-    expect(flags).toEqual([{ id: "mismatch", label: "Listed ≠ create", severity: "warn" }]);
+  it("does not treat a listed burn wallet as a warning", () => {
+    expect(projectFlags({ ...base, walletProvenance: "mismatch" })).toEqual([]);
   });
 
   it("flags concentrated holders", () => {
@@ -88,7 +87,7 @@ describe("provenanceLabel", () => {
   it("names the comparison, not a verdict", () => {
     expect(provenanceLabel("matched")).toBe("Same wallet");
     expect(provenanceLabel("match")).toBe("Same wallet");
-    expect(provenanceLabel("mismatch")).toBe("Different wallet");
+    expect(provenanceLabel("mismatch")).toBe("Burn wallet ≠ deployer");
     expect(provenanceLabel("unknown")).toBe("Not checked");
     expect(provenanceLabel(undefined)).toBe("Not checked");
   });

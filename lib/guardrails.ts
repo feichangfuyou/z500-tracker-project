@@ -1,4 +1,5 @@
 import { BASE58 } from "./format";
+import { liveWallet } from "./programs";
 import { ADD_RATE_LIMIT, ADD_RATE_WINDOW_MS, REPORT_HIDE_THRESHOLD } from "./types";
 
 export type AddLogEntry = { sid: string; ip: string; at: number };
@@ -33,7 +34,9 @@ export function matchLaunchWallet(
   pump?: string | null,
 ) {
   if (!launchWallet) return "unknown" as const;
-  if (onchain) return onchain === launchWallet ? ("matched" as const) : ("mismatch" as const);
-  if (pump) return pump === launchWallet ? ("matched" as const) : ("unknown" as const);
+  const chain = liveWallet(onchain);
+  const listedPump = liveWallet(pump);
+  if (chain) return chain === launchWallet ? ("matched" as const) : ("mismatch" as const);
+  if (listedPump) return listedPump === launchWallet ? ("matched" as const) : ("unknown" as const);
   return "unknown" as const;
 }

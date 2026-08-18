@@ -407,13 +407,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
                 k="Creator check"
                 v={provenanceLabel(p.walletProvenance)}
                 size="sm"
-                valueClass={
-                  p.walletProvenance === "mismatch"
-                    ? "text-gold-lit"
-                    : p.walletProvenance === "matched"
-                      ? "text-good"
-                      : "text-dim"
-                }
+                valueClass={p.walletProvenance === "matched" ? "text-good" : "text-dim"}
               />
               <Stat k="Create" v={<WalletCell wallet={dossier?.onchainCreator} />} size="sm" />
               <Stat k="Pump" v={<WalletCell wallet={dossier?.pumpCreator} />} size="sm" />

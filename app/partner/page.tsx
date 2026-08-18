@@ -15,11 +15,11 @@ export const metadata: Metadata = {
 
 const API_FIELDS = [
   ["burned", "On-chain $ANSEM burned (verified window)"],
-  ["provenance", "API: matched / mismatch / unknown — listed vs creator wallet"],
-  ["flags", "Listed ≠ create, sniper, thin liq, concentration"],
+  ["provenance", "API: matched / mismatch / unknown — listed burn wallet vs pump deployer"],
+  ["flags", "Sniper, thin liq, concentration — not listed ≠ create"],
   ["officialRank", "Listed-order estimate from public ansem.io inputs — not z500"],
   ["listedRank", "Same number as officialRank, clearer name"],
-  ["reasons", "On /api/public/radar: pending, partial, short, mismatch, serial, sniper"],
+  ["reasons", "On /api/public/radar: pending, partial, short, serial, sniper"],
   ["officialDelta", "Listed # minus Crosscheck #"],
   ["ansemUrl", "Official coin page on ansem.io, when a slug exists"],
 ];

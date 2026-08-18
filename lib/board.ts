@@ -20,6 +20,7 @@ import { readStore } from "./store";
 import { ANSEM_MINT, DEX_HOT_MS, type BoardResponse, type DexCache, type Project, type RankSnapshot } from "./types";
 import { projectFlags } from "./flags";
 import { notifyChannels } from "./notify";
+import { provenanceFromStore } from "./provenance";
 import { launchCounts } from "./wallets";
 
 type BoardPayload = Omit<BoardResponse, "sid">;
@@ -214,7 +215,11 @@ async function assembleBoard(): Promise<BoardPayload> {
         holderTop10Pct: holders?.top10Pct ?? null,
         insiderPct: holders?.insiderPct ?? null,
         sniper: Boolean(holders?.sniper),
-        walletProvenance: store.provenance[c.mint]?.status ?? "unknown",
+        walletProvenance: provenanceFromStore(
+          c.creatorWallet || null,
+          store.dossiers[c.mint],
+          store.provenance[c.mint],
+        ),
         ...boost,
         listedAirdropMcap: listed.airdropMcap,
         listedMarketCap: listed.marketCap,
@@ -271,7 +276,11 @@ async function assembleBoard(): Promise<BoardPayload> {
         holderTop10Pct: holders?.top10Pct ?? null,
         insiderPct: holders?.insiderPct ?? null,
         sniper: Boolean(holders?.sniper),
-        walletProvenance: store.provenance[p.mint]?.status ?? "unknown",
+        walletProvenance: provenanceFromStore(
+          p.launchWallet,
+          store.dossiers[p.mint],
+          store.provenance[p.mint],
+        ),
         ...boost,
         listedAirdropMcap: null,
         listedMarketCap: live?.marketCap ?? null,

@@ -3,8 +3,6 @@ import { effectiveBurn } from "./score";
 import type { Flag, Project, ProvenanceStatus } from "./types";
 import { serialLabel, serialSeverity } from "./wallets";
 
-export const MISMATCH_LABEL = "Listed ≠ create";
-
 export function publicProvenance(status: string | null | undefined): ProvenanceStatus {
   if (status === "mismatch") return "mismatch";
   if (status === "matched" || status === "match") return "matched";
@@ -14,7 +12,7 @@ export function publicProvenance(status: string | null | undefined): ProvenanceS
 export function provenanceLabel(status: string | null | undefined) {
   const normalized = publicProvenance(status);
   if (normalized === "matched") return "Same wallet";
-  if (normalized === "mismatch") return "Different wallet";
+  if (normalized === "mismatch") return "Burn wallet ≠ deployer";
   return "Not checked";
 }
 
@@ -40,10 +38,6 @@ type FlagInput = Pick<
 
 export function projectFlags(p: FlagInput, now = Date.now()): Flag[] {
   const flags: Flag[] = [];
-
-  if (p.walletProvenance === "mismatch") {
-    flags.push({ id: "mismatch", label: MISMATCH_LABEL, severity: "warn" });
-  }
 
   if (p.sniper) {
     flags.push({ id: "sniper", label: "Bundle / sniper", severity: "bad" });

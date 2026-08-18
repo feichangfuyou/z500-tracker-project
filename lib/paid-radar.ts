@@ -97,9 +97,6 @@ export function radarReasons(
     Partial<Pick<Project, "verifyExhausted" | "walletProvenance" | "sniper" | "launchCount">>,
 ): RadarReason[] {
   const reasons = burnReasons(p);
-  if (p.walletProvenance === "mismatch") {
-    reasons.push({ id: "mismatch", label: "Listed ≠ create", severity: "warn" });
-  }
   if (p.sniper) {
     reasons.push({ id: "sniper", label: "Bundle / sniper", severity: "bad" });
   }
@@ -112,7 +109,7 @@ export function radarReasons(
 
 function reasonWeight(row: RadarRow) {
   if (row.reasons.some((r) => r.severity === "bad")) return 0;
-  if (row.reasons.some((r) => r.id === "short" || r.id === "mismatch" || r.id === "sniper")) return 1;
+  if (row.reasons.some((r) => r.id === "short" || r.id === "sniper")) return 1;
   return 2;
 }
 

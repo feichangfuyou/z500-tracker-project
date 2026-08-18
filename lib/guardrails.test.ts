@@ -8,6 +8,7 @@ import {
   pruneAddLog,
   shouldHideFromReports,
 } from "./guardrails";
+import { TOKEN_PROGRAM } from "./programs";
 
 describe("isValidAddress", () => {
   it("accepts a pump mint", () => {
@@ -58,5 +59,10 @@ describe("wallet provenance", () => {
     expect(matchLaunchWallet("Aaa", null, "Aaa")).toBe("matched");
     expect(matchLaunchWallet("Aaa", null, "Bbb")).toBe("unknown");
     expect(matchLaunchWallet("Aaa", "Bbb", "Aaa")).toBe("mismatch");
+  });
+
+  it("ignores a program ID pretending to be the on-chain creator", () => {
+    expect(matchLaunchWallet("Aaa", TOKEN_PROGRAM, "Aaa")).toBe("matched");
+    expect(matchLaunchWallet("Aaa", TOKEN_PROGRAM, "Bbb")).toBe("unknown");
   });
 });

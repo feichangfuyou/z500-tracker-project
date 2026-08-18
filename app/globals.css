@@ -370,7 +370,8 @@ dialog::backdrop {
 }
 
 .board-table {
-  --board-rank-w: 96px;
+  --board-rank-digits: 3;
+  --board-rank-w: max(36px, calc(var(--board-rank-digits) * 8px + 20px));
   width: 100%;
   min-width: 1632px;
   table-layout: fixed;
@@ -383,6 +384,13 @@ dialog::backdrop {
   padding: 0 12px;
   vertical-align: middle;
   line-height: 16px;
+}
+
+.board-table th:first-child,
+.board-table td:first-child:not(.details) {
+  padding-left: 10px;
+  padding-right: 6px;
+  white-space: nowrap;
 }
 
 .board-table td {
@@ -455,7 +463,7 @@ dialog::backdrop {
 }
 
 .board-table col.rank { width: var(--board-rank-w); }
-.board-table col.coin { width: 260px; }
+.board-table col.coin { width: calc(356px - var(--board-rank-w)); }
 .board-table col.flags { width: 168px; }
 .board-table col.tier { width: 92px; }
 .board-table col.price { width: 112px; }

@@ -62,13 +62,13 @@ describe("projectRubric", () => {
     expect(rubric.rows.every((r) => r.mark === "pass")).toBe(true);
   });
 
-  it("warns when listed wallet is not the mint-create wallet", () => {
+  it("passes when the listed burn wallet is not the pump deployer", () => {
     const rubric = projectRubric({ ...clean, walletProvenance: "mismatch" });
-    expect(rubric.mark).toBe("warn");
-    expect(rubric.label).toBe("Caution");
+    expect(rubric.mark).toBe("pass");
+    expect(rubric.label).toBe("Clear");
     const wallet = rubric.rows.find((r) => r.id === "wallet");
-    expect(wallet?.mark).toBe("warn");
-    expect(wallet?.note).toBe("Listed launch wallet is not the mint-create wallet we found");
+    expect(wallet?.mark).toBe("pass");
+    expect(wallet?.note).toContain("burn wallet");
   });
 
   it("warns on gold with no burn scan", () => {

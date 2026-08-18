@@ -50,7 +50,6 @@ const BOARD_COLS = [
 ] as const;
 
 const FLAGS = [
-  ["Listed ≠ create", "Listed launch wallet is not the mint-create wallet we found. A warning, not a fail — they may be different jobs."],
   ["Bundle / sniper", "Buys in the same create block, or RugCheck labeled it a sniper/bundle."],
   ["5 / 8 launches", "Same wallet launched several coins on this board. Five is a warning, eight is worse."],
   ["Insiders", "Wallets RugCheck calls insiders hold a large share."],
@@ -63,7 +62,7 @@ const FLAGS = [
 
 const PAGES = [
   ["Board", "/", "Live list of launches. Start here after the primer."],
-  ["Radar", "/radar", "Gold and Diamond with a burn gap, listed ≠ create, serial, or bundle."],
+  ["Radar", "/radar", "Gold and Diamond with a burn gap, serial launches, or a bundle."],
   ["Index", "/index", "Each UTC day we snapshot the top 25 by our score."],
   ["Wallets", "/wallets", "Launch wallets grouped together. Serial means five or more coins."],
   ["Airdrop", "/airdrop", "Paste a wallet to see claimed vs still-claimable vs sold. Claiming is on ansem.io."],
@@ -204,7 +203,7 @@ export default function GuidePage() {
             if we have not seen enough yet. The number next to the grade is a risk score from the flags.
           </p>
           <dl className="mt-6 divide-y divide-border border-t border-border">
-            <Entry k="Wallet" v="Listed vs mint-create wallet. Same wallet is a pass. Different wallet is a warning — we compared addresses, not intent." />
+            <Entry k="Wallet" v="Listed vs mint-create wallet. ansem.io usually lists the burn wallet, not the pump deployer. Both same-wallet and burn-wallet ≠ deployer are a pass." />
             <Entry k="Burns" v="Did we verify $ANSEM burns on-chain? Gold/Diamond with none is a warning. A claimed burn the chain does not back is a fail." />
             <Entry k="Holders" v="Share owned by the top 10 wallets. Warn at 55%, fail at 75%." />
             <Entry k="Insiders" v="Share RugCheck labels as insiders. Warn at 12%, fail at 25%." />
@@ -227,9 +226,8 @@ export default function GuidePage() {
             ))}
           </dl>
           <p className="mt-4 text-pretty text-sm text-muted">
-            Creator check is same wallet, different wallet, or not checked. Same wallet means the listed address
-            matches a creator we found. Different wallet means we found a creator and it is not that address.
-            Not checked means we have not seen enough yet.
+            Creator check is same wallet, burn wallet ≠ deployer, or not checked. ansem.io usually lists the burn
+            wallet, not the pump deployer, so a different address is a note — not a flag.
           </p>
         </section>
 

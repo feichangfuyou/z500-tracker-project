@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ANSEM_MINT } from "./types";
+import { TOKEN_PROGRAM } from "./programs";
 import {
   PUMP_PROGRAM,
   burnsInTx,
@@ -74,6 +75,65 @@ describe("extractMintCreatorFromTx", () => {
         mint,
       ),
     ).toBe(creator);
+  });
+
+  it("reads create_v2 user at account 5, not the token program at 7", () => {
+    expect(
+      extractMintCreatorFromTx(
+        {
+          transaction: {
+            message: {
+              accountKeys: ["FeePayer111111111111111111111111111111111"],
+              instructions: [
+                {
+                  programId: PUMP_PROGRAM,
+                  accounts: [
+                    mint,
+                    "mintAuth",
+                    "curve",
+                    "assoc",
+                    "global",
+                    creator,
+                    "11111111111111111111111111111111",
+                    TOKEN_PROGRAM,
+                    "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+                    "mayhem",
+                    "params",
+                    "vault",
+                    "state",
+                    "tokenVault",
+                    "event",
+                    PUMP_PROGRAM,
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        mint,
+      ),
+    ).toBe(creator);
+  });
+
+  it("ignores pump buys and does not fall back to the fee payer", () => {
+    expect(
+      extractMintCreatorFromTx(
+        {
+          transaction: {
+            message: {
+              accountKeys: ["FeePayer111111111111111111111111111111111"],
+              instructions: [
+                {
+                  programId: PUMP_PROGRAM,
+                  accounts: ["global", "fee", mint, "curve", "assoc", "user", "system", TOKEN_PROGRAM],
+                },
+              ],
+            },
+          },
+        },
+        mint,
+      ),
+    ).toBeNull();
   });
 
   it("falls back to initializeMint authority", () => {

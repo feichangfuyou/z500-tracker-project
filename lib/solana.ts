@@ -1,13 +1,13 @@
 import { bundleFromWindow } from "./bundle";
 import { burnIndexMode, heliusApiKey, heliusPageBudget } from "./helius";
 import { indexWalletBurns } from "./helius-transfers";
+import { isProgramPubkey, PUMP_PROGRAM, TOKEN_2022, TOKEN_PROGRAM } from "./programs";
 import { radarFromRugcheck } from "./radar";
 import { rpcPostAny } from "./rpc";
 import { ANSEM_DECIMALS, ANSEM_MINT, BURN_MAX_PAGES, BURN_MAX_PAGES_PAID, BURN_PAGE_SIZE } from "./types";
 
 export { concentrationFromHolderPcts } from "./radar";
-
-export const PUMP_PROGRAM = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
+export { PUMP_PROGRAM } from "./programs";
 
 type RpcRow<T> = { id?: number; result?: T; error?: { message?: string } };
 
@@ -96,11 +96,20 @@ function pubkeyOf(key: AccountKey | undefined) {
   return typeof key === "string" ? key : key.pubkey || null;
 }
 
+/** pump.fun create user: v1 accounts[7], create_v2 accounts[5]. Only when accounts[0] is the mint. */
+export function pumpCreateUser(accounts: AccountKey[] | undefined, mint: string) {
+  const keys = (accounts || []).map(pubkeyOf).filter((key): key is string => Boolean(key));
+  if (keys[0] !== mint) return null;
+  const user = keys.length >= 16 ? keys[5] : keys[7];
+  if (!user || user === mint || isProgramPubkey(user)) return null;
+  return user;
+}
+
 export function extractMintCreatorFromTx(tx: ParsedTx | null | undefined, mint: string) {
   if (!tx) return null;
   for (const ix of allInstructions(tx)) {
     if (ix.programId === PUMP_PROGRAM) {
-      const user = pubkeyOf(ix.accounts?.[7]);
+      const user = pumpCreateUser(ix.accounts, mint);
       if (user) return user;
     }
     const parsed = ix.parsed;
@@ -110,10 +119,11 @@ export function extractMintCreatorFromTx(tx: ParsedTx | null | undefined, mint: 
       parsed.info?.mint === mint &&
       parsed.info.mintAuthority
     ) {
-      return parsed.info.mintAuthority;
+      const authority = parsed.info.mintAuthority;
+      if (authority && !isProgramPubkey(authority)) return authority;
     }
   }
-  return pubkeyOf(tx.transaction?.message?.accountKeys?.[0]);
+  return null;
 }
 
 function txChunkSize() {
@@ -412,10 +422,17 @@ export async function fetchMintCreateWindow(mint: string) {
       params: [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0 }],
     })),
   );
-  const oldest = window[window.length - 1];
-  const createTx = txs[txs.length - 1];
-  const creator = extractMintCreatorFromTx(createTx, mint);
-  const createSlot = createTx?.slot ?? 0;
+  let creator: string | null = null;
+  let signature: string | null = null;
+  let createSlot = 0;
+  for (let i = txs.length - 1; i >= 0; i -= 1) {
+    const found = extractMintCreatorFromTx(txs[i], mint);
+    if (!found) continue;
+    creator = found;
+    signature = window[i]?.signature || null;
+    createSlot = txs[i]?.slot ?? 0;
+    break;
+  }
   const rows = txs.map((tx, i) => ({
     slot: tx?.slot || 0,
     feePayer: pubkeyOf(tx?.transaction?.message?.accountKeys?.[0]),
@@ -424,7 +441,7 @@ export async function fetchMintCreateWindow(mint: string) {
   }));
   return {
     creator,
-    signature: oldest?.signature || null,
+    signature,
     slot: createSlot || null,
     bundle: bundleFromWindow(createSlot, rows),
   };
@@ -435,8 +452,6 @@ export async function fetchMintCreatePayer(mint: string) {
   return window?.creator ?? null;
 }
 
-const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-const TOKEN_2022 = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 
 type TokenAccount = {
   account?: {

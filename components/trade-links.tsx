@@ -10,11 +10,13 @@ export function TradeLinks({
   slug,
   className,
   embedded = false,
+  compact = false,
 }: {
   mint: string;
   slug?: string | null;
   className?: string;
   embedded?: boolean;
+  compact?: boolean;
 }) {
   const links = tradeLinks(mint, slug);
   const items = LINK_ORDER.flatMap((item) => {
@@ -41,12 +43,23 @@ export function TradeLinks({
   }
 
   return (
-    <nav className={cn("flex flex-wrap gap-x-4 gap-y-2", className)} aria-label="Trade and explorers">
+    <nav
+      className={cn(
+        compact ? "flex flex-wrap items-center gap-1" : "flex flex-wrap gap-x-4 gap-y-2",
+        className,
+      )}
+      aria-label="Trade and explorers"
+    >
       {items.map((item) => (
         <TradeLink
           key={item.key}
           item={item}
-          className="type-btn inline-flex min-h-8 items-center gap-1.5 text-[11px] text-muted hover:text-ink"
+          compact={compact}
+          className={
+            compact
+              ? "type-btn inline-flex h-7 items-center gap-1 border border-border px-2 text-muted hover:border-border-strong hover:bg-row hover:text-ink"
+              : "type-btn inline-flex min-h-8 items-center gap-1.5 text-[11px] text-muted hover:text-ink"
+          }
         />
       ))}
     </nav>
@@ -56,13 +69,15 @@ export function TradeLinks({
 function TradeLink({
   item,
   embedded = false,
+  compact = false,
   className,
 }: {
   item: (typeof LINK_ORDER)[number] & { href: string; key: keyof TradeLinks };
   embedded?: boolean;
+  compact?: boolean;
   className?: string;
 }) {
-  const text = embedded ? item.abbr : item.label;
+  const text = embedded || compact ? item.abbr : item.label;
   const { display, start, stop } = useScramble(text);
   return (
     <a

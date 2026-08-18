@@ -71,16 +71,16 @@ function overallMark(rows: RubricRow[]): RubricMark {
 }
 
 function walletRow(p: RubricInput): RubricRow {
+  if (p.walletProvenance === "matched") {
+    return { id: "wallet", label: "Wallet", mark: "pass", note: "Listed wallet is the mint-create wallet" };
+  }
   if (p.walletProvenance === "mismatch") {
     return {
       id: "wallet",
       label: "Wallet",
-      mark: "warn",
-      note: "Listed launch wallet is not the mint-create wallet we found",
+      mark: "pass",
+      note: "Listed burn wallet differs from the pump deployer — typical on ansem.io",
     };
-  }
-  if (p.walletProvenance === "matched") {
-    return { id: "wallet", label: "Wallet", mark: "pass", note: "Listed wallet matches a creator we found" };
   }
   return { id: "wallet", label: "Wallet", mark: "unchecked", note: "Not checked yet" };
 }
