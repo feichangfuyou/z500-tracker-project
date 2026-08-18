@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { BurnVideo } from "@/components/burn-hero";
 import { FlagChips } from "@/components/flag-chips";
-import { MiniStat, MiniStatGrid, changeClass } from "@/components/mini-stat";
+import { MiniStat, changeClass } from "@/components/mini-stat";
 import { LiveNum, LiveShift } from "@/components/live-num";
 import { Reveal, Spin } from "@/components/reveal";
 import { ScrambleText } from "@/components/scramble-text";
@@ -765,58 +765,6 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
             }
           />
         </div>
-
-        <section className="mt-6 border border-border bg-panel px-4 py-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="type-eyebrow">Coverage</h2>
-            <p className={cn("font-mono text-[11px] tabular-nums", board.stats.coverageLive ? "text-good" : "text-dim")}>
-              {board.stats.coverageLive ? "Live burns" : "Cron scan"}
-              {board.stats.lastBurnAt ? (
-                <>
-                  {" · last burn "}
-                  <TimeAgo at={board.stats.lastBurnAt} />
-                </>
-              ) : null}
-            </p>
-          </div>
-          <MiniStatGrid>
-            <MiniStat
-              k="Paid indexed"
-              v={
-                <>
-                  <LiveNum value={board.stats.paidIndexed} format="int" flash={false} />
-                  {" / "}
-                  <LiveNum value={board.stats.paidWallets} format="int" flash={false} />
-                </>
-              }
-              hint="Gold and Diamond launch wallets with an on-chain burn index"
-            />
-            <MiniStat
-              k="Done"
-              v={<LiveNum value={board.stats.paidExhausted} format="int" flash={false} />}
-              hint="Paid wallets scanned to the end of history"
-            />
-            <MiniStat
-              k="Still scanning"
-              v={<LiveNum value={board.stats.paidPending} format="int" flash={false} />}
-              hint="Paid wallets with no index yet"
-            />
-            <MiniStat
-              k="Wallets"
-              v={<LiveNum value={board.stats.scannedWallets} format="int" flash={false} />}
-              hint="Launch wallets with at least one burn pass"
-            />
-            <MiniStat
-              k="On-chain"
-              v={<LiveNum value={board.stats.verifiedBurned} format="compact" flash={false} />}
-              hint="Verified $ANSEM burned across indexed wallets"
-            />
-            <MiniStat
-              k="Last scan"
-              v={board.stats.lastScanAt ? <TimeAgo at={board.stats.lastScanAt} /> : "—"}
-            />
-          </MiniStatGrid>
-        </section>
 
         <section className="mt-6 flex min-h-[var(--ticker-h)] min-w-0 items-center overflow-hidden border-y border-border">
           <h2 className="type-eyebrow flex h-full shrink-0 items-center pr-2 leading-none sm:pr-3">Tape</h2>
