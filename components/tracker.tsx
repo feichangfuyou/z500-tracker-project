@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { BurnVideo } from "@/components/burn-hero";
 import { FlagChips } from "@/components/flag-chips";
-import { MiniStat, changeClass } from "@/components/mini-stat";
+import { MiniStat, MiniStatGrid, changeClass } from "@/components/mini-stat";
 import { LiveNum, LiveShift } from "@/components/live-num";
 import { Reveal, Spin } from "@/components/reveal";
 import { ScrambleText } from "@/components/scramble-text";
@@ -609,7 +609,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
   );
 
   return (
-    <div className="min-h-dvh bg-bg pb-[calc(var(--ticker-h)+1.25rem+env(safe-area-inset-bottom))] text-ink">
+    <div className="min-h-dvh overflow-x-clip bg-bg pb-[calc(var(--ticker-h)+1.25rem+env(safe-area-inset-bottom))] text-ink">
       <SiteHeader>
         <div className="flex shrink-0 items-center gap-2">
             <button
@@ -662,17 +662,24 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
             />
             <BurnVideo playId={burnFx?.at ?? 0} active={!!burnFx} onEnded={stopBurn} />
           </div>
-          <div className="hero-banner__copy max-w-[620px] px-5 py-5 lg:px-8 lg:py-7">
+          <div className="hero-banner__copy max-w-[620px] px-5 py-3 sm:py-5 lg:px-8 lg:py-7">
             <p className="type-eyebrow">Unofficial · not ansem.io</p>
-            <h1 className="display display-scan display-title mt-3 text-balance text-ink">
+            <h1 className="display display-scan display-title mt-2 text-balance text-ink sm:mt-3">
               What’s launching on ansem.io
             </h1>
-            <p className="mt-5 max-w-[472px] text-pretty text-sm text-muted">
+            <p className="mt-2 text-pretty text-sm text-muted sm:hidden">
+              Unofficial tracker of ansem.io launches — prices, verified $ANSEM burns, and flags.{" "}
+              <Link href="/guide" className="text-ink hover:text-gold-lit">
+                <ScrambleText text="How to read this site" />
+              </Link>
+              .
+            </p>
+            <p className="mt-5 hidden max-w-[472px] text-pretty text-sm text-muted sm:block">
               ansem.io is a Solana site where people launch new coins. Crosscheck is our unofficial tracker of those
               same coins — prices, whether $ANSEM burns actually happened, and flags when something looks off. Not the
               official z500, and not built by ansem.io.
             </p>
-            <div className="mt-6 flex w-full max-w-[472px] flex-col min-[420px]:flex-row">
+            <div className="mt-4 flex w-full max-w-[472px] flex-col min-[420px]:flex-row sm:mt-6">
               <Link
                 href="/guide"
                 className="type-btn inline-flex h-11 min-h-11 flex-1 items-center justify-center bg-accent px-3 font-semibold text-void hover:bg-accent-hover"
@@ -759,7 +766,59 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
           />
         </div>
 
-        <section className="mt-6 flex min-h-[var(--ticker-h)] items-center border-y border-border">
+        <section className="mt-6 border border-border bg-panel px-4 py-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="type-eyebrow">Coverage</h2>
+            <p className={cn("font-mono text-[11px] tabular-nums", board.stats.coverageLive ? "text-good" : "text-dim")}>
+              {board.stats.coverageLive ? "Live burns" : "Cron scan"}
+              {board.stats.lastBurnAt ? (
+                <>
+                  {" · last burn "}
+                  <TimeAgo at={board.stats.lastBurnAt} />
+                </>
+              ) : null}
+            </p>
+          </div>
+          <MiniStatGrid>
+            <MiniStat
+              k="Paid indexed"
+              v={
+                <>
+                  <LiveNum value={board.stats.paidIndexed} format="int" flash={false} />
+                  {" / "}
+                  <LiveNum value={board.stats.paidWallets} format="int" flash={false} />
+                </>
+              }
+              hint="Gold and Diamond launch wallets with an on-chain burn index"
+            />
+            <MiniStat
+              k="Done"
+              v={<LiveNum value={board.stats.paidExhausted} format="int" flash={false} />}
+              hint="Paid wallets scanned to the end of history"
+            />
+            <MiniStat
+              k="Still scanning"
+              v={<LiveNum value={board.stats.paidPending} format="int" flash={false} />}
+              hint="Paid wallets with no index yet"
+            />
+            <MiniStat
+              k="Wallets"
+              v={<LiveNum value={board.stats.scannedWallets} format="int" flash={false} />}
+              hint="Launch wallets with at least one burn pass"
+            />
+            <MiniStat
+              k="On-chain"
+              v={<LiveNum value={board.stats.verifiedBurned} format="compact" flash={false} />}
+              hint="Verified $ANSEM burned across indexed wallets"
+            />
+            <MiniStat
+              k="Last scan"
+              v={board.stats.lastScanAt ? <TimeAgo at={board.stats.lastScanAt} /> : "—"}
+            />
+          </MiniStatGrid>
+        </section>
+
+        <section className="mt-6 flex min-h-[var(--ticker-h)] min-w-0 items-center overflow-hidden border-y border-border">
           <h2 className="type-eyebrow flex h-full shrink-0 items-center pr-2 leading-none sm:pr-3">Tape</h2>
           <TapeStrip events={board.tape || []} />
           <p className="hidden h-full shrink-0 items-center border-l border-border bg-bg px-3 font-mono text-[11px] leading-none text-dim md:flex">
@@ -794,8 +853,9 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
           id="board"
           className="mt-6 scroll-mt-[calc(var(--header-h)+0.5rem)] border-b border-border pb-3"
         >
-          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex w-full min-w-0 flex-col gap-3 overflow-x-clip sm:flex-row sm:items-center">
             <div className="chip-scroll min-w-0 flex-1">
+              <div className="chip-scroll__row">
               {FEEDS.map((f) => (
                 <button
                   key={f.id}
@@ -814,6 +874,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                   <ScrambleText text={f.label} />
                 </button>
               ))}
+              </div>
             </div>
             <div className="flex w-full shrink-0 items-center gap-2 sm:ml-auto sm:w-auto">
               <div className="flex h-9 min-w-0 flex-1 items-center border border-border p-[3px] sm:h-[31px] sm:flex-none">
@@ -860,7 +921,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                   <ScrambleText text="Score" />
                 </button>
               </div>
-              <div className="flex h-9 shrink-0 items-center border border-border p-[3px] sm:h-[31px]">
+              <div className="hidden h-9 shrink-0 items-center border border-border p-[3px] md:flex md:h-[31px]">
                 <button
                   type="button"
                   aria-pressed={view === "grid"}
@@ -1026,7 +1087,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
             <div
               className={cn(
                 "mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3",
-                view === "table" && "hidden",
+                view === "table" && "md:hidden",
               )}
             >
               {shown.map((p, i) => (
@@ -1170,7 +1231,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
             <div
               className={cn(
                 "board-scroll mt-3 overflow-x-auto border border-border bg-bg",
-                view === "table" ? "block" : "hidden",
+                view === "table" ? "hidden md:block" : "hidden",
               )}
             >
               <table className="board-table text-sm">

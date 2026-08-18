@@ -102,6 +102,7 @@ export function WalletList({ initial }: { initial: WalletRow[] }) {
         </label>
         <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
           <div className="chip-scroll min-w-0 flex-1">
+            <div className="chip-scroll__row">
             {FEEDS.map((f) => (
               <button
                 key={f.id}
@@ -117,9 +118,10 @@ export function WalletList({ initial }: { initial: WalletRow[] }) {
                     : "border-transparent text-muted hover:border-gold hover:text-gold-lit",
                 )}
               >
-                  <ScrambleText text={f.label} />
-                </button>
+                <ScrambleText text={f.label} />
+              </button>
             ))}
+            </div>
           </div>
           <div className="flex h-9 w-full shrink-0 items-center border border-border p-[3px] sm:ml-auto sm:h-[31px] sm:w-auto">
             <SortBtn id="launches" current={sortKey} onPick={setSortKey} onPage={setPage}>

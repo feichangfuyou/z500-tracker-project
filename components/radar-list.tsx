@@ -78,6 +78,7 @@ export function RadarList({ initial, stats: initialStats }: { initial: RadarRow[
       </MiniStatGrid>
 
       <div className="chip-scroll mt-6 border-b border-border pb-3">
+        <div className="chip-scroll__row">
         {FEEDS.map((f) => (
           <button
             key={f.id}
@@ -93,6 +94,7 @@ export function RadarList({ initial, stats: initialStats }: { initial: RadarRow[
             <ScrambleText text={f.label} />
           </button>
         ))}
+        </div>
       </div>
 
       {shown.length === 0 ? (

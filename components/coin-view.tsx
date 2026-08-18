@@ -597,7 +597,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
           <CoinShareCard project={p} dossier={dossier} />
         </section>
 
-        <section className="mt-6 flex min-h-[var(--ticker-h)] items-center border-y border-border">
+        <section className="mt-6 flex min-h-[var(--ticker-h)] min-w-0 items-center overflow-hidden border-y border-border">
           <h2 className="type-eyebrow flex h-full shrink-0 items-center pr-2 leading-none sm:pr-3">Tape</h2>
           <TapeStrip events={tape} />
         </section>
