@@ -12,9 +12,7 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
 });
 
-const site = process.env.VERCEL_PROJECT_PRODUCTION_URL
-  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-  : "https://crosscheck-red.vercel.app";
+const site = "https://www.crosscheck.markets";
 
 const title = "Crosscheck — unofficial ansem.io launch tracker";
 const description =

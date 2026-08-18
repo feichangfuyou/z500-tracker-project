@@ -16,6 +16,18 @@ export function heliusApiKey(rpcUrl = process.env.SOLANA_RPC || "", extra = proc
   }
 }
 
+export function heliusRpcUrl(rpcUrl = process.env.SOLANA_RPC || "", extra = process.env.HELIUS_API_KEY) {
+  const trimmed = rpcUrl.trim();
+  if (trimmed && /helius-rpc\.com/i.test(trimmed)) return trimmed;
+  const key = heliusApiKey(rpcUrl, extra);
+  if (!key) return null;
+  return `https://mainnet.helius-rpc.com/?api-key=${key}`;
+}
+
+export function isTransferCursor(cursor?: string | null) {
+  return Boolean(cursor && /^\d+:\d+:/.test(cursor));
+}
+
 export type HeliusTx = {
   signature?: string;
   type?: string;
@@ -150,7 +162,7 @@ async function sleep(ms: number) {
 }
 
 async function fetchHeliusPage(url: URL) {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
     const res = await fetch(url, {
       headers: { accept: "application/json", "user-agent": "crosscheck/1.0" },
       signal: AbortSignal.timeout(12_000),
@@ -158,7 +170,7 @@ async function fetchHeliusPage(url: URL) {
     // Helius uses 404 when a wallet has no matching events in the window.
     if (res.status === 404) return [];
     if (res.status === 429 || res.status >= 500) {
-      await sleep(400 * (attempt + 1));
+      await sleep(2_000);
       continue;
     }
     if (!res.ok) return null;

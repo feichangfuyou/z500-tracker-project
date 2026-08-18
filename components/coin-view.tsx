@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState, useSyncExternalStore, type ReactNode } 
 import { AnsemCta } from "@/components/ansem-cta";
 import { CoinShareCard } from "@/components/coin-share-card";
 import { CoinThumb } from "@/components/coin-thumb";
+import { CopyAddr } from "@/components/copy-addr";
 import { FlagChips } from "@/components/flag-chips";
 import { LiveNum, LiveShift } from "@/components/live-num";
 import { useBoardPoll } from "@/components/use-board-poll";
@@ -481,17 +482,31 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
                 <ScrambleText text={checkingHolders ? "Checking…" : "Holders"} />
               </button>
             </div>
-            <p className="mt-4 max-w-[40rem] break-all text-pretty text-[12.5px] text-dim">
+            <p className="mt-4 max-w-[40rem] text-pretty text-[12.5px] text-dim">
               Contract{" "}
-              <a href={solscanAccount(p.mint)} target="_blank" rel="noopener noreferrer" className="hover:text-ink">
+              <a
+                href={solscanAccount(p.mint)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="break-all hover:text-ink"
+              >
                 {p.mint}
               </a>
+              <CopyAddr value={p.mint} label="mint address" className="ml-1" />
               {dossier?.createSig ? (
                 <>
                   {" · create tx "}
-                  <a href={solscanTx(dossier.createSig)} target="_blank" rel="noopener noreferrer" className="hover:text-ink">
-                    {shortAddr(dossier.createSig)}
-                  </a>
+                  <span className="inline-flex items-center gap-1">
+                    <a
+                      href={solscanTx(dossier.createSig)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-ink"
+                    >
+                      {shortAddr(dossier.createSig)}
+                    </a>
+                    <CopyAddr value={dossier.createSig} label="create transaction" />
+                  </span>
                   {dossier.createSlot ? (
                     <>
                       {" · slot "}
@@ -557,7 +572,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
               <ol className="mt-3 space-y-1.5 font-mono text-[11px] tabular-nums">
                 {dossier.holders.map((h) => (
                   <li key={h.address} className="flex justify-between gap-3 text-muted">
-                    <span className={h.insider ? "text-bad" : "text-ink"}>
+                    <span className={cn("inline-flex min-w-0 items-center gap-1", h.insider ? "text-bad" : "text-ink")}>
                       <a
                         href={solscanAccount(h.owner || h.address)}
                         target="_blank"
@@ -566,6 +581,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
                       >
                         {shortAddr(h.owner || h.address)}
                       </a>
+                      <CopyAddr value={h.owner || h.address} label="holder address" />
                     </span>
                     <span>
                       <LiveNum value={h.pct} format={(n) => (n == null ? "—" : `${n.toFixed(1)}%`)} flash={false} />
@@ -599,24 +615,10 @@ function CoinActs({
   enhanced: boolean;
   onError: (message: string) => void;
 }) {
-  const [copied, setCopied] = useState(false);
   return (
     <span className="inline-flex items-center gap-1 font-mono text-[11px] tabular-nums text-muted">
-      <button
-        type="button"
-        aria-label={copied ? "Mint copied" : "Copy mint address"}
-        onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(mint);
-            setCopied(true);
-          } catch {
-            onError("Couldn't copy the mint.");
-          }
-        }}
-        className="hover:text-ink"
-      >
-        {copied ? "Copied" : shortAddr(mint)}
-      </button>
+      <span>{shortAddr(mint)}</span>
+      <CopyAddr value={mint} label="mint address" onError={onError} />
       {enhanced ? (
         <>
           <span aria-hidden className="text-dim">
@@ -634,9 +636,12 @@ function CoinActs({
 function WalletCell({ wallet }: { wallet: string | null | undefined }) {
   if (!wallet) return "—";
   return (
-    <Link href={`/wallets/${wallet}`} className="hover:text-ink">
-      {shortAddr(wallet)}
-    </Link>
+    <span className="inline-flex max-w-full items-center gap-1">
+      <Link href={`/wallets/${wallet}`} className="min-w-0 truncate hover:text-ink">
+        {shortAddr(wallet)}
+      </Link>
+      <CopyAddr value={wallet} label="wallet address" />
+    </span>
   );
 }
 
@@ -656,8 +661,8 @@ function Stat({
       <dt className="type-eyebrow">{k}</dt>
       <dd
         className={cn(
-          "mt-1 truncate font-mono tabular-nums",
-          size === "lg" ? "text-lg" : "text-sm",
+          "mt-1 font-mono tabular-nums",
+          size === "lg" ? "truncate text-lg" : "text-sm",
           valueClass ?? "text-ink",
         )}
       >

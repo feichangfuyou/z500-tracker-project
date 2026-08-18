@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { CopyAddr } from "@/components/copy-addr";
 import { LiveNum } from "@/components/live-num";
 import { PageBack } from "@/components/page-back";
 import { Reveal } from "@/components/reveal";
@@ -170,12 +171,16 @@ export default function ModPage() {
                     <Link href={`/c/${item.mint}`} className="block truncate text-[13px] font-medium text-ink hover:text-gold-lit">
                       {item.name}
                     </Link>
-                    <p className="font-mono text-[11px] text-dim">
-                      <Link href={`/c/${item.mint}`} className="hover:text-ink">
-                        {shortAddr(item.mint)}
-                      </Link>
-                      {" · "}
-                      <LiveNum value={item.reports} format="int" flash={false} /> reports · {item.status}
+                    <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] text-dim">
+                      <span className="inline-flex min-w-0 items-center gap-1">
+                        <Link href={`/c/${item.mint}`} className="hover:text-ink">
+                          {shortAddr(item.mint)}
+                        </Link>
+                        <CopyAddr value={item.mint} label="mint address" />
+                      </span>
+                      <span>
+                        <LiveNum value={item.reports} format="int" flash={false} /> reports · {item.status}
+                      </span>
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-x-3 gap-y-1">

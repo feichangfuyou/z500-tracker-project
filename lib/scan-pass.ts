@@ -27,6 +27,20 @@ function coinName(c: Pick<AnsemCoin, "name" | "ticker" | "mint">) {
 
 export async function runScanPass(opts?: { maxMs?: number }) {
   const store = await readStore();
+  if ((store.scanLockUntil || 0) > Date.now()) {
+    return {
+      scanned: 0,
+      errors: 0,
+      wallets: [] as string[],
+      pending: 0,
+      unfinished: Object.values(store.burns).filter((b) => !b.exhausted).length,
+      mode: "lock" as const,
+      dex: 0,
+      lastWallet: store.scanCursor.lastWallet,
+      tape: 0,
+      at: Date.now(),
+    };
+  }
   let coins: AnsemCoin[] = [];
   try {
     coins = await fetchAnsemCoins();

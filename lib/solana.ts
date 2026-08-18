@@ -1,5 +1,6 @@
 import { bundleFromWindow } from "./bundle";
-import { burnIndexMode, heliusApiKey, heliusPageBudget, indexHeliusBurns } from "./helius";
+import { burnIndexMode, heliusApiKey, heliusPageBudget } from "./helius";
+import { indexWalletBurns } from "./helius-transfers";
 import { radarFromRugcheck } from "./radar";
 import { rpcPostAny } from "./rpc";
 import { ANSEM_DECIMALS, ANSEM_MINT, BURN_MAX_PAGES, BURN_MAX_PAGES_PAID, BURN_PAGE_SIZE } from "./types";
@@ -172,7 +173,7 @@ async function fetchHeliusBurns(
     Boolean(opts && !opts.indexedBy && (opts.cursor || opts.headSig));
   // Unset indexedBy with a cursor/headSig is a pre-Helius RPC window — start a native BURN index.
   const mode = burnIndexMode({ ...opts, reindex });
-  return indexHeliusBurns(wallet, {
+  return indexWalletBurns(wallet, {
     mode,
     cursor: reindex ? null : opts?.cursor ?? null,
     headSig: reindex ? null : opts?.headSig ?? null,

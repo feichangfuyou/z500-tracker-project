@@ -12,7 +12,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:e2e": "node scripts/e2e-api.mjs",
-    "backfill": "npx vite-node scripts/backfill-burns.ts"
+    "backfill": "npx vite-node scripts/backfill-burns.ts",
+    "catchup": "npx vite-node scripts/catchup-burns.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",

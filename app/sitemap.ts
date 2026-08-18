@@ -1,8 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const site = process.env.VERCEL_PROJECT_PRODUCTION_URL
-  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-  : "https://crosscheck-red.vercel.app";
+const site = "https://www.crosscheck.markets";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const paths = ["/", "/radar", "/guide", "/index", "/wallets", "/airdrop", "/partner", "/privacy"];

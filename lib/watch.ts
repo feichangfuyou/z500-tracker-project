@@ -20,3 +20,9 @@ export function parseWatchList(raw: unknown): string[] {
 export function mergeWatches(...lists: string[][]) {
   return parseWatchList(lists.flat());
 }
+
+export function sameWatchList(left: string[], right: string[]) {
+  if (left.length !== right.length) return false;
+  const seen = new Set(left);
+  return right.every((mint) => seen.has(mint));
+}

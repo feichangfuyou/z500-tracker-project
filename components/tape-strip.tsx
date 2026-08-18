@@ -52,7 +52,7 @@ export function TapeStrip({ events }: { events: TapeEvent[] }) {
     const ro = new ResizeObserver(measure);
     ro.observe(clip);
     return () => ro.disconnect();
-  }, [events]);
+  }, [events, shown.length]);
 
   useEffect(() => {
     const el = rootRef.current;

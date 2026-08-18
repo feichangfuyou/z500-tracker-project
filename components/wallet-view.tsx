@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import { CoinThumb } from "@/components/coin-thumb";
+import { CopyAddr } from "@/components/copy-addr";
 import { FlagChips } from "@/components/flag-chips";
 import { LiveNum, LiveShift, type LiveNumFormatName } from "@/components/live-num";
 import { MiniStat, MiniStatGrid, changeClass } from "@/components/mini-stat";
@@ -61,7 +62,10 @@ export function WalletView({ initial }: { initial: WalletPayload }) {
             </span>
             <div className="min-w-0">
               <h1 className="display display-title text-balance text-ink">{shortAddr(row.wallet)}</h1>
-              <p className="mt-2 break-all font-mono text-xs text-dim">{row.wallet}</p>
+              <p className="mt-2 font-mono text-xs text-dim">
+                <span className="break-all">{row.wallet}</span>
+                <CopyAddr value={row.wallet} label="wallet address" className="ml-1" />
+              </p>
               <p className="mt-2 text-pretty text-sm text-muted">
                 {row.topTier} ·{" "}
                 <LiveNum value={row.coins.length} format={(n) => serialLabel(Math.round(n ?? 0))} flash={false} />
@@ -115,13 +119,16 @@ export function WalletView({ initial }: { initial: WalletPayload }) {
               return (
                 <li key={c.mint} className="py-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <Link href={`/c/${c.mint}`} className="flex min-w-0 items-center gap-2.5 hover:text-gold-lit">
-                      <CoinThumb src={c.imageUrl} label={c.ticker || c.name} />
-                      <span className="min-w-0">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="truncate text-sm text-ink">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <Link href={`/c/${c.mint}`} aria-hidden tabIndex={-1} className="shrink-0">
+                        <CoinThumb src={c.imageUrl} label={c.ticker || c.name} />
+                      </Link>
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-1">
+                          <Link href={`/c/${c.mint}`} className="min-w-0 truncate text-sm text-ink hover:text-gold-lit">
                             <ScrambleText text={c.name} />
-                          </span>
+                          </Link>
+                          <CopyAddr value={c.mint} label="mint address" />
                           {c.boostPoints > 0 ? (
                             <span
                               className={cn(
@@ -132,14 +139,14 @@ export function WalletView({ initial }: { initial: WalletPayload }) {
                               boost <LiveNum value={c.boostPoints} format="int" flash={false} className="ml-0.5" />
                             </span>
                           ) : null}
-                        </span>
-                        <span className="mt-0.5 block font-mono text-[11px] text-dim">
+                        </div>
+                        <p className="mt-0.5 font-mono text-[11px] text-dim">
                           {c.ticker ? `$${c.ticker}` : shortAddr(c.mint)} · {c.tier}
                           {status ? ` · ${status}` : ""}
                           {c.addedAt ? <TimeAgo at={c.addedAt} prefix=" · listed " /> : null}
-                        </span>
-                      </span>
-                    </Link>
+                        </p>
+                      </div>
+                    </div>
                     {flags.length > 0 ? <FlagChips flags={flags} compact /> : null}
                   </div>
                   <MiniStatGrid>

@@ -7,7 +7,9 @@ import {
   heliusHistoryUrl,
   heliusPageBudget,
   heliusPageDone,
+  heliusRpcUrl,
   indexHeliusBurns,
+  isTransferCursor,
   sumHeliusBurns,
   takeUntilSig,
 } from "./helius";
@@ -15,6 +17,10 @@ import {
 describe("helius helpers", () => {
   it("reads an api-key from a Helius RPC URL", () => {
     expect(heliusApiKey("https://mainnet.helius-rpc.com/?api-key=abc", "")).toBe("abc");
+    expect(heliusRpcUrl("https://mainnet.helius-rpc.com/?api-key=abc", "")).toBe(
+      "https://mainnet.helius-rpc.com/?api-key=abc",
+    );
+    expect(isTransferCursor("12:1:0:splTransfer")).toBe(true);
   });
 
   it("sums ANSEM burns and ignores other mints", () => {

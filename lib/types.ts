@@ -269,4 +269,5 @@ export type Store = {
   watches: Record<string, string[]>;
   dossiers: Record<string, Dossier>;
   indexDays: IndexDay[];
+  scanLockUntil?: number;
 };

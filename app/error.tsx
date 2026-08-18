@@ -4,7 +4,6 @@ import { FadeIn } from "@/components/reveal";
 import { ScrambleText } from "@/components/scramble-text";
 
 export default function Error({
-  error: _error,
   reset,
 }: {
   error: Error & { digest?: string };

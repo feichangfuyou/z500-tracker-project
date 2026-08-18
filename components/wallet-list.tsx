@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { CoinThumb } from "@/components/coin-thumb";
+import { CopyAddr } from "@/components/copy-addr";
 import { FlagChips } from "@/components/flag-chips";
 import { LiveNum } from "@/components/live-num";
 import { MiniStat, MiniStatGrid } from "@/components/mini-stat";
@@ -203,6 +204,7 @@ function WalletRowItem({ row, rank }: { row: WalletRow; rank: number }) {
               >
                 {shortAddr(row.wallet)}
               </Link>
+              <CopyAddr value={row.wallet} label="wallet address" />
               <TierBadge tier={row.topTier} />
             </div>
             <p className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] text-dim">

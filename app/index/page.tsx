@@ -30,8 +30,8 @@ export default async function IndexPage({ searchParams }: { searchParams: Promis
               alt=""
               fill
               priority
-              quality={90}
-              sizes="(max-width: 1400px) 100vw, 1400px"
+              quality={70}
+              sizes="(max-width: 900px) 100vw, 1400px"
               className="hero-banner__still"
             />
           </div>

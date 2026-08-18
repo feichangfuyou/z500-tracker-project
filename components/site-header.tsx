@@ -22,6 +22,8 @@ const SITE_NAV_MENU_ID = "site-nav-menu";
 const DESKTOP_NAV = "(min-width: 1280px)";
 const SHEET = { duration: 0.2, ease: "easeOut" } as const;
 
+let guideReturnTo = "/";
+
 const LINKS = [
   { href: "/", text: "Board" },
   { href: "/radar", text: "Radar" },
@@ -157,15 +159,17 @@ export function SiteHeader({ children, className }: { children?: ReactNode; clas
   const router = useRouter();
   const reduce = useReducedMotion();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPath, setMenuPath] = useState(pathname);
   const headerRef = useRef<HTMLElement>(null);
   const burgerRef = useRef<HTMLButtonElement>(null);
   const sheet = reduce ? { duration: 0 } : SHEET;
   const { addOpen } = useSyncExternalStore(subscribeHeaderChrome, getHeaderChrome, getHeaderChromeServer);
   const home = pathname === "/";
-
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
+  const onGuide = isCurrent(pathname, "/guide");
+  if (menuPath !== pathname) {
+    setMenuPath(pathname);
+    if (menuOpen) setMenuOpen(false);
+  }
 
   useEffect(() => {
     readHeaderChromeFromLocation();
@@ -174,6 +178,10 @@ export function SiteHeader({ children, className }: { children?: ReactNode; clas
   useEffect(() => {
     if (!home) setHeaderAdd(false);
   }, [home]);
+
+  useEffect(() => {
+    if (!onGuide) guideReturnTo = `${pathname}${window.location.search}`;
+  }, [onGuide, pathname]);
 
   const goSearch = useCallback(() => {
     if (home) {
@@ -306,19 +314,26 @@ export function SiteHeader({ children, className }: { children?: ReactNode; clas
             ))}
           </nav>
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-4">
-            <Link
-              href="/guide"
-              prefetch
-              aria-label="Guide"
-              aria-current={isCurrent(pathname, "/guide") ? "page" : undefined}
-              onClick={() => setMenuOpen(false)}
+            <button
+              type="button"
+              aria-label={onGuide ? "Close guide" : "Guide"}
+              aria-pressed={onGuide}
+              onClick={() => {
+                setMenuOpen(false);
+                if (onGuide) {
+                  router.replace(guideReturnTo || "/");
+                  return;
+                }
+                guideReturnTo = `${pathname}${window.location.search}`;
+                router.push("/guide");
+              }}
               className={cn(
                 "grid size-10 shrink-0 place-items-center border border-border bg-panel text-muted hover:border-border-strong hover:text-ink sm:size-[31px]",
-                isCurrent(pathname, "/guide") && "text-accent hover:text-accent",
+                onGuide && "text-accent hover:text-accent",
               )}
             >
-              <FileText size={12} strokeWidth={1.6} />
-            </Link>
+              {onGuide ? <X size={12} /> : <FileText size={12} strokeWidth={1.6} />}
+            </button>
             <HeaderSearch className="hidden min-w-0 max-w-[240px] flex-1 md:flex" onSubmit={goSearch} />
             {children}
             <button

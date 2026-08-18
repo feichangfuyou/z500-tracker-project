@@ -85,13 +85,14 @@
 html {
   background: var(--bg);
   color: var(--ink);
-  overflow-x: clip;
+  overflow: visible;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
 
 body {
   min-height: 100dvh;
+  overflow-x: clip;
   background: var(--bg);
   color: var(--ink);
   font-family: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;

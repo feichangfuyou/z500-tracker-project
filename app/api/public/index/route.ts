@@ -14,10 +14,13 @@ export function OPTIONS() {
 export async function GET(req: Request) {
   if (await limited(req, "read")) return limitResponse("read");
   try {
-    const [store, board] = await Promise.all([readStore(), buildBoard().catch(() => null)]);
+    const store = await readStore();
+    if (store.indexDays?.length) {
+      return NextResponse.json({ days: store.indexDays }, { headers: PUBLIC_HEADERS });
+    }
+    const board = await buildBoard().catch(() => null);
     const live = board ? indexFromProjects(board.projects) : null;
-    const days = store.indexDays?.length ? store.indexDays : live ? [live] : [];
-    return NextResponse.json({ days }, { headers: PUBLIC_HEADERS });
+    return NextResponse.json({ days: live ? [live] : [] }, { headers: PUBLIC_HEADERS });
   } catch {
     return NextResponse.json({ error: "Couldn't load the index." }, { status: 502, headers: PUBLIC_CORS });
   }

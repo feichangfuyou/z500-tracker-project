@@ -48,7 +48,11 @@ export async function readJson<T>(
   const text = await req.text();
   if (text.length > maxBytes) return { ok: false, status: 413, error: "Payload too large." };
   try {
-    return { ok: true, value: JSON.parse(text) as T };
+    const value = JSON.parse(text) as T;
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      return { ok: false, status: 400, error: "Invalid JSON" };
+    }
+    return { ok: true, value };
   } catch {
     return { ok: false, status: 400, error: "Invalid JSON" };
   }

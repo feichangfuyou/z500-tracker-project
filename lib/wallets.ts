@@ -60,7 +60,7 @@ export function serialLabel(count: number) {
   return `${count} launch${count === 1 ? "" : "es"}`;
 }
 
-export function launchWallets(projects: Project[]): WalletRow[] {
+export function launchWallets(projects: Project[], opts?: { lite?: boolean }): WalletRow[] {
   const by = new Map<string, WalletRow>();
   for (const p of projects) {
     if (!p.launchWallet) continue;
@@ -89,8 +89,8 @@ export function launchWallets(projects: Project[]): WalletRow[] {
       boostGolden: p.boostGolden,
       addedAt: p.addedAt,
       provenance: p.walletProvenance,
-      flags: p.flags,
-      imageUrl: p.imageUrl,
+      flags: opts?.lite ? [] : p.flags,
+      imageUrl: opts?.lite ? null : p.imageUrl,
     });
     row.burned = Math.max(row.burned, p.verifiedBurn || 0);
     if ((TIER_RANK[p.tier] ?? 9) < (TIER_RANK[row.topTier] ?? 9)) row.topTier = p.tier;

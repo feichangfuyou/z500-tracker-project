@@ -99,9 +99,19 @@ export function compactProject(p: Project): Project {
 }
 
 function dropEmpty(key: string, value: unknown) {
-  if (key === "flags" || key === "tape" || key === "alerts" || key === "projects") return value;
-  if (value == null || value === false || value === "") return undefined;
+  if (key === "tape" || key === "alerts" || key === "projects") return value;
+  if (value == null || value === false || value === "" || (Array.isArray(value) && value.length === 0)) {
+    return undefined;
+  }
   return value;
+}
+
+export const BOARD_SEED = 20;
+
+export function listedProjects(projects: Project[]) {
+  return [...projects].sort(
+    (a, b) => (a.officialRank ?? 9_999) - (b.officialRank ?? 9_999) || a.name.localeCompare(b.name),
+  );
 }
 
 export function compactBoard(
@@ -111,7 +121,12 @@ export function compactBoard(
   const tape: TapeEvent[] = (board.tape || []).slice(0, opts?.lite ? 12 : 40);
   const projects = board.projects.map((p) => {
     const row = compactProject(p);
-    if (opts?.lite) row.imageUrl = null;
+    if (opts?.lite) {
+      row.imageUrl = null;
+      row.addedAt = 0;
+      row.addedBy = null;
+      row.reports = 0;
+    }
     return row;
   });
   return JSON.parse(
@@ -125,4 +140,10 @@ export function compactBoard(
       dropEmpty,
     ),
   ) as Omit<BoardResponse, "sid">;
+}
+
+/** First listed page for SSR. Client hydrates the rest from /api/board?lite=1. */
+export function seedBoard(board: Omit<BoardResponse, "sid"> & { sid?: string }): Omit<BoardResponse, "sid"> {
+  const compact = compactBoard(board);
+  return { ...compact, projects: listedProjects(compact.projects).slice(0, BOARD_SEED) };
 }

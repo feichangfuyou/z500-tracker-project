@@ -1,4 +1,4 @@
-import { compactBoard } from "@/lib/public";
+import { seedBoard } from "@/lib/public";
 import { Tracker } from "@/components/tracker";
 import { buildBoard } from "@/lib/board";
 import { EMPTY_BOARD_STATS, type BoardResponse } from "@/lib/types";
@@ -7,7 +7,7 @@ export const revalidate = 20;
 
 async function loadBoard(): Promise<BoardResponse> {
   try {
-    const board = compactBoard(await buildBoard());
+    const board = seedBoard(await buildBoard());
     return { ...board, sid: "" };
   } catch {
     return {

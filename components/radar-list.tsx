@@ -4,14 +4,15 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { AnsemCta } from "@/components/ansem-cta";
 import { CoinThumb } from "@/components/coin-thumb";
+import { CopyAddr } from "@/components/copy-addr";
 import { LiveNum } from "@/components/live-num";
 import { MiniStat, MiniStatGrid } from "@/components/mini-stat";
 import { ScrambleText } from "@/components/scramble-text";
 import { useBoardPoll } from "@/components/use-board-poll";
 import { cn } from "@/lib/cn";
 import { fmtCompact } from "@/lib/format";
-import { paidRadar, radarStats, type RadarReason, type RadarReasonId, type RadarRow } from "@/lib/paid-radar";
-import type { BoardResponse, Project } from "@/lib/types";
+import { paidRadar, radarStats, type RadarReason, type RadarReasonId, type RadarRow, type RadarStats } from "@/lib/paid-radar";
+import type { BoardResponse } from "@/lib/types";
 
 const FEEDS = [
   { id: "all", label: "All" },
@@ -38,16 +39,17 @@ function matchesFeed(row: RadarRow, feed: RadarFeed) {
   return hasReason(row, feed);
 }
 
-export function RadarList({ initial }: { initial: Project[] }) {
-  const [projects, setProjects] = useState(initial);
+export function RadarList({ initial, stats: initialStats }: { initial: RadarRow[]; stats: RadarStats }) {
+  const [rows, setRows] = useState(initial);
+  const [stats, setStats] = useState(initialStats);
   const [feed, setFeed] = useState<RadarFeed>("all");
   const onBoard = useCallback((board: BoardResponse) => {
-    setProjects(board.projects);
+    const next = paidRadar(board.projects);
+    setRows(next);
+    setStats(radarStats(board.projects, next));
   }, []);
   useBoardPoll(onBoard);
 
-  const rows = useMemo(() => paidRadar(projects), [projects]);
-  const stats = useMemo(() => radarStats(projects, rows), [projects, rows]);
   const shown = useMemo(() => rows.filter((row) => matchesFeed(row, feed)), [rows, feed]);
 
   if (stats.paid === 0) {
@@ -142,6 +144,7 @@ function RadarRowItem({ row, rank }: { row: RadarRow; rank: number }) {
               <Link href={`/c/${row.mint}`} className="truncate text-sm text-ink hover:text-gold-lit">
                 {row.name}
               </Link>
+              <CopyAddr value={row.mint} label="mint address" />
               {row.ticker ? <span className="font-mono text-[11px] text-dim">${row.ticker}</span> : null}
               <span
                 className={cn(

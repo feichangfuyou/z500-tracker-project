@@ -27,6 +27,14 @@ describe("readJson", () => {
     if (!got.ok) expect(got.status).toBe(400);
   });
 
+  it("rejects null, arrays, and primitives", async () => {
+    for (const body of ["null", "[]", "1", "true", '"str"']) {
+      const got = await readJson(new Request("http://localhost", { method: "POST", body }));
+      expect(got.ok).toBe(false);
+      if (!got.ok) expect(got.status).toBe(400);
+    }
+  });
+
   it("rejects oversized payloads", async () => {
     const got = await readJson(new Request("http://localhost", { method: "POST", body: "x".repeat(40) }), 8);
     expect(got.ok).toBe(false);

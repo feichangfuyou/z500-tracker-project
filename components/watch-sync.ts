@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { mergeWatches, parseWatchList, WATCH_KEY, WATCH_WALLET_KEY } from "@/lib/watch";
+import { mergeWatches, parseWatchList, sameWatchList, WATCH_KEY, WATCH_WALLET_KEY } from "@/lib/watch";
 
 export function loadLocalWatches(): string[] {
   try {
@@ -30,11 +30,12 @@ export function saveWatchWallet(wallet: string) {
 
 export async function pullWatches(local = loadLocalWatches(), wallet = loadWatchWallet()) {
   const res = await fetch(`/api/watch${wallet ? `?wallet=${encodeURIComponent(wallet)}` : ""}`);
-  if (!res.ok) return local;
+  if (!res.ok) return { mints: local, shouldPush: false };
   const json = (await res.json()) as { mints?: string[] };
-  const merged = mergeWatches(local, json.mints || []);
+  const remote = json.mints || [];
+  const merged = mergeWatches(local, remote);
   saveLocalWatches(merged);
-  return merged;
+  return { mints: merged, shouldPush: !sameWatchList(merged, remote) };
 }
 
 export async function pushWatches(mints: string[], wallet = loadWatchWallet()) {
@@ -48,8 +49,11 @@ export async function pushWatches(mints: string[], wallet = loadWatchWallet()) {
 
 export function useWatchSync(setWatched: (mints: string[]) => void) {
   return useCallback(async () => {
-    const merged = await pullWatches().catch(() => loadLocalWatches());
-    setWatched(merged);
-    await pushWatches(merged);
+    const { mints, shouldPush } = await pullWatches().catch(() => ({
+      mints: loadLocalWatches(),
+      shouldPush: false,
+    }));
+    setWatched(mints);
+    if (shouldPush) await pushWatches(mints);
   }, [setWatched]);
 }

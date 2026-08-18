@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { cn } from "@/lib/cn";
 
 export function BurnVideo({
   playId,
@@ -21,12 +20,7 @@ export function BurnVideo({
 
   useEffect(() => {
     const el = videoRef.current;
-    if (!el) return;
-
-    if (!active) {
-      el.pause();
-      return;
-    }
+    if (!el || !active) return;
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       const t = window.setTimeout(() => endedRef.current(), 1200);
@@ -81,14 +75,16 @@ export function BurnVideo({
     return () => io.disconnect();
   }, [active, playId]);
 
+  if (!active) return null;
+
   return (
     <video
       ref={videoRef}
-      className={cn("hero-banner__video", active ? "hero-banner__video--on" : null)}
+      className="hero-banner__video hero-banner__video--on"
       src="/brand/burn.mp4"
       muted
       playsInline
-      preload="auto"
+      preload="metadata"
       aria-hidden
       tabIndex={-1}
       disablePictureInPicture

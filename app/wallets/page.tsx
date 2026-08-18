@@ -11,7 +11,7 @@ export const revalidate = 20;
 
 export default async function WalletsPage() {
   const board = await buildBoard().catch(() => null);
-  const rows = board ? launchWallets(board.projects) : [];
+  const rows = board ? launchWallets(board.projects, { lite: true }) : [];
   return (
     <div className="min-h-dvh bg-bg pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-ink">
       <SiteHeader />
@@ -23,8 +23,8 @@ export default async function WalletsPage() {
               alt=""
               fill
               priority
-              quality={90}
-              sizes="(max-width: 1400px) 100vw, 1400px"
+              quality={70}
+              sizes="(max-width: 900px) 100vw, 1400px"
               className="hero-banner__still"
             />
           </div>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import { CoinThumb } from "@/components/coin-thumb";
+import { CopyAddr } from "@/components/copy-addr";
 import { FlagChips } from "@/components/flag-chips";
 import { LiveNum } from "@/components/live-num";
 import { MiniStat, MiniStatGrid, changeClass } from "@/components/mini-stat";
@@ -54,20 +55,25 @@ export function IndexBasket({
           return (
             <li key={c.mint} className="py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <Link href={`/c/${c.mint}`} className="flex min-w-0 items-center gap-2.5 hover:text-gold-lit">
+                <div className="flex min-w-0 items-center gap-2.5">
                   <span className="w-6 shrink-0 font-mono text-[11px] tabular-nums text-dim">
                     <LiveNum value={i + 1} format="int" flash={false} />
                   </span>
-                  <CoinThumb src={c.imageUrl} label={c.ticker || c.name} />
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm text-ink">
-                      <ScrambleText text={c.name} />
-                    </span>
-                    <span className="mt-0.5 block font-mono text-[11px] text-dim">
+                  <Link href={`/c/${c.mint}`} aria-hidden tabIndex={-1} className="shrink-0">
+                    <CoinThumb src={c.imageUrl} label={c.ticker || c.name} />
+                  </Link>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-1">
+                      <Link href={`/c/${c.mint}`} className="min-w-0 truncate text-sm text-ink hover:text-gold-lit">
+                        <ScrambleText text={c.name} />
+                      </Link>
+                      <CopyAddr value={c.mint} label="mint address" />
+                    </div>
+                    <p className="mt-0.5 font-mono text-[11px] text-dim">
                       {[c.ticker ? `$${c.ticker}` : null, c.tier, status].filter(Boolean).join(" · ")}
-                    </span>
-                  </span>
-                </Link>
+                    </p>
+                  </div>
+                </div>
                 {(c.flags || []).length > 0 ? <FlagChips flags={c.flags || []} compact /> : null}
               </div>
               <MiniStatGrid>

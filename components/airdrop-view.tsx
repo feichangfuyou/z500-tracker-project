@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { AnsemCta } from "@/components/ansem-cta";
 import { CoinThumb } from "@/components/coin-thumb";
+import { CopyAddr } from "@/components/copy-addr";
 import { LiveNum } from "@/components/live-num";
 import { MiniStat, MiniStatGrid } from "@/components/mini-stat";
 import { PageBack } from "@/components/page-back";
@@ -122,6 +123,10 @@ export function AirdropView() {
               <LiveNum value={ledger.claimable.length} format={fmtInt} reel /> claimable ·{" "}
               <LiveNum value={ledger.sold.length} format={fmtInt} reel /> sold
             </p>
+            <p className="mt-2 font-mono text-xs text-dim">
+              <span className="break-all">{ledger.wallet}</span>
+              <CopyAddr value={ledger.wallet} label="wallet address" className="ml-1" />
+            </p>
             <p className="mt-2 max-w-[40rem] text-pretty text-[12.5px] text-dim">
               {ledger.holdsAnsem
                 ? "This wallet holds $ANSEM, so empty rows may still be claimable on ansem.io."
@@ -183,17 +188,22 @@ function HoldTable({
           {rows.map((r) => (
             <li key={r.mint} className="py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <Link href={`/c/${r.mint}`} className="flex min-w-0 items-center gap-2.5 hover:text-gold-lit">
-                  <CoinThumb src={r.imageUrl} label={r.ticker || r.name} />
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm text-ink">
-                      <ScrambleText text={r.name} />
-                    </span>
-                    <span className="mt-0.5 block font-mono text-[11px] text-dim">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <Link href={`/c/${r.mint}`} aria-hidden tabIndex={-1} className="shrink-0">
+                    <CoinThumb src={r.imageUrl} label={r.ticker || r.name} />
+                  </Link>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-1">
+                      <Link href={`/c/${r.mint}`} className="min-w-0 truncate text-sm text-ink hover:text-gold-lit">
+                        <ScrambleText text={r.name} />
+                      </Link>
+                      <CopyAddr value={r.mint} label="mint address" />
+                    </div>
+                    <p className="mt-0.5 font-mono text-[11px] text-dim">
                       {r.ticker ? `$${r.ticker}` : shortAddr(r.mint)} · {statusLabel(r)}
-                    </span>
-                  </span>
-                </Link>
+                    </p>
+                  </div>
+                </div>
                 <a
                   href={ansemCoinUrl(r.slug) || ANSEM_AIRDROP}
                   target="_blank"

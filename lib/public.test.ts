@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compactBoard, publicCoin } from "./public";
+import { compactBoard, listedProjects, publicCoin, seedBoard } from "./public";
 import { EMPTY_BOARD_STATS, type Project } from "./types";
 
 describe("publicCoin", () => {
@@ -152,5 +152,53 @@ describe("publicCoin", () => {
       { lite: true },
     );
     expect(slim.projects[0] && "imageUrl" in slim.projects[0]).toBe(false);
+  });
+
+  it("seeds only the first listed page", () => {
+    const coins = Array.from({ length: 30 }, (_, i) => ({
+      id: `ansem:${i}`,
+      source: "ansem" as const,
+      name: `C${String(i).padStart(2, "0")}`,
+      mint: `Mint${String(i).padStart(39, "0")}`,
+      ticker: `T${i}`,
+      tier: "Free" as const,
+      launchWallet: null,
+      burnAmount: 0,
+      burnPriceRef: 0,
+      verifiedBurn: 0,
+      verifiedTxChecked: null,
+      verifiedAt: null,
+      addedAt: 1,
+      addedBy: null,
+      reports: 0,
+      hidden: false,
+      live: null,
+      lastUpdated: null,
+      rankDelta: 0,
+      boostPoints: 0,
+      boostGolden: false,
+      boostExpiresAt: null,
+      listedAirdropMcap: null,
+      listedMarketCap: null,
+      officialRank: 30 - i,
+      officialDelta: 0,
+      score: i,
+      flags: [],
+      launchCount: 1,
+    }));
+    const seeded = seedBoard({
+      projects: coins as unknown as Project[],
+      ansemPrice: 1,
+      solPrice: 1,
+      stats: { ...EMPTY_BOARD_STATS, coins: 30 },
+      lastSynced: 1,
+      feedSource: "ansem",
+      tape: [],
+      alerts: { telegram: false, discord: false },
+    });
+    expect(seeded.projects).toHaveLength(20);
+    expect(seeded.stats.coins).toBe(30);
+    expect(seeded.projects[0]?.officialRank).toBe(1);
+    expect(listedProjects(coins as unknown as Project[])[0]?.officialRank).toBe(1);
   });
 });

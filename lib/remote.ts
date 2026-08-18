@@ -10,14 +10,14 @@ function headers() {
   };
 }
 
-async function rpc(name: string, body: unknown) {
+async function rpc(name: string, body: unknown, timeoutMs = 4000) {
   if (!remoteConfigured()) return null;
   try {
     const res = await fetch(`${process.env.SUPABASE_URL}/rest/v1/rpc/${name}`, {
       method: "POST",
       headers: headers(),
       body: JSON.stringify({ p_secret: process.env.STORE_SECRET, ...(body as object) }),
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) return { ok: false as const, status: res.status, text: await res.text() };
     const text = await res.text();
@@ -41,7 +41,7 @@ export async function remoteTooMany(key: string, max: number, windowMs: number) 
 }
 
 export async function remoteWatchGet(keys: string[]) {
-  const hit = await rpc("crosscheck_watch_get", { p_keys: keys });
+  const hit = await rpc("crosscheck_watch_get", { p_keys: keys }, 700);
   if (!hit?.ok || !hit.value || typeof hit.value !== "object") return null;
   const out: Record<string, string[]> = {};
   for (const [key, mints] of Object.entries(hit.value as Record<string, unknown>)) {

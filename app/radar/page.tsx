@@ -5,6 +5,7 @@ import { RadarList } from "@/components/radar-list";
 import { SiteHeader } from "@/components/site-header";
 import { buildBoard } from "@/lib/board";
 import { ANSEM_Z500 } from "@/lib/links";
+import { paidRadar, radarStats } from "@/lib/paid-radar";
 
 export const revalidate = 20;
 
@@ -16,6 +17,9 @@ export const metadata: Metadata = {
 
 export default async function RadarPage() {
   const board = await buildBoard().catch(() => null);
+  const projects = board?.projects || [];
+  const rows = paidRadar(projects);
+  const stats = radarStats(projects, rows);
   return (
     <div className="min-h-dvh bg-bg pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-ink">
       <SiteHeader />
@@ -38,7 +42,7 @@ export default async function RadarPage() {
           </Link>
           .
         </p>
-        <RadarList initial={board?.projects || []} />
+        <RadarList initial={rows} stats={stats} />
       </main>
     </div>
   );

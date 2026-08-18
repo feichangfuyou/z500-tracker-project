@@ -594,7 +594,10 @@ export function withStore<T>(
 export function readStore() {
   const hit = g.__crosscheckStoreRead;
   if (hit && Date.now() - hit.at < STORE_READ_MS) {
-    return Promise.resolve(structuredClone(hit.value));
+    return Promise.resolve(hit.value);
   }
-  return withStore(async (s) => structuredClone(s), { persist: false });
+  return withStore(async (s) => {
+    rememberRead(s);
+    return g.__crosscheckStoreRead!.value;
+  }, { persist: false });
 }

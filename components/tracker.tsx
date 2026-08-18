@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { CoinThumb } from "@/components/coin-thumb";
+import { CopyAddr } from "@/components/copy-addr";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import {
@@ -201,9 +202,9 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
       })
       .catch(() => undefined);
     pullWatches()
-      .then((mints) => {
+      .then(({ mints, shouldPush }) => {
         setWatched(mints);
-        void pushWatches(mints);
+        if (shouldPush) void pushWatches(mints);
       })
       .catch(() => undefined);
   }, []);
@@ -293,25 +294,41 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
     }
   }, [alertsOn, ignite, watched]);
 
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
+  const refresh = useCallback(async (mode: "lite" | "fresh" = "fresh") => {
+    if (mode === "fresh") setRefreshing(true);
     setError(null);
     try {
-      const res = await fetch("/api/board?fresh=1", { cache: "no-store" });
+      const res = await fetch(mode === "fresh" ? "/api/board?fresh=1" : "/api/board?lite=1", {
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error("refresh failed");
       const json = (await res.json()) as BoardResponse;
       applyDeltas(json);
     } catch {
-      setError("Couldn't refresh live data. Check your connection and try again.");
+      if (mode === "fresh") setError("Couldn't refresh live data. Check your connection and try again.");
     } finally {
-      setRefreshing(false);
+      if (mode === "fresh") setRefreshing(false);
     }
   }, [applyDeltas]);
 
   useEffect(() => {
+    if ((initial.stats.coins || 0) <= initial.projects.length) return;
+    let alive = true;
+    fetch("/api/board?lite=1")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: BoardResponse | null) => {
+        if (alive && json?.projects?.length) applyDeltas(json);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [applyDeltas, initial.projects.length, initial.stats.coins]);
+
+  useEffect(() => {
     if (!auto) return;
     const id = window.setInterval(() => {
-      if (document.visibilityState === "visible") void refresh();
+      if (document.visibilityState === "visible") void refresh("lite");
     }, POLL_MS);
     return () => window.clearInterval(id);
   }, [auto, refresh]);
@@ -605,7 +622,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
             </button>
             <button
               type="button"
-              onClick={refresh}
+              onClick={() => void refresh()}
               disabled={refreshing}
               aria-label={refreshing ? "Refreshing" : "Refresh"}
               className="type-btn hidden size-[31px] items-center justify-center border border-border text-ink hover:border-border-strong md:inline-flex md:h-8 md:w-auto md:gap-2 md:px-3 disabled:opacity-40"
@@ -639,8 +656,8 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
               alt=""
               fill
               priority
-              quality={90}
-              sizes="(max-width: 1400px) 100vw, 1400px"
+              quality={70}
+              sizes="(max-width: 900px) 100vw, 1400px"
               className="hero-banner__still"
             />
             <BurnVideo playId={burnFx?.at ?? 0} active={!!burnFx} onEnded={stopBurn} />
@@ -890,7 +907,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                 setError(null);
                 saveWatchWallet(wallet);
                 pullWatches(loadWatched(), wallet)
-                  .then((mints) => persistWatch(mints))
+                  .then(({ mints }) => persistWatch(mints))
                   .catch(() => undefined);
               }}
             >
@@ -1021,14 +1038,17 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                     </Link>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
-                        <Link href={`/c/${p.mint}`} className="min-w-0">
-                          <span className="block truncate text-base font-medium text-ink">
-                            <ScrambleText text={p.name} />
-                          </span>
-                          <span className="mt-0.5 block truncate font-mono text-[11px] text-dim">
-                            {p.ticker ? `$${p.ticker}` : shortAddr(p.mint)}
-                          </span>
-                        </Link>
+                        <div className="flex min-w-0 items-end gap-1">
+                          <Link href={`/c/${p.mint}`} className="min-w-0">
+                            <span className="block truncate text-base font-medium text-ink">
+                              <ScrambleText text={p.name} />
+                            </span>
+                            <span className="mt-0.5 block truncate font-mono text-[11px] text-dim">
+                              {p.ticker ? `$${p.ticker}` : shortAddr(p.mint)}
+                            </span>
+                          </Link>
+                          <CopyAddr value={p.mint} label="mint address" />
+                        </div>
                         <span className="flex shrink-0 items-center gap-1">
                           {p.boostPoints > 0 && <BoostChip p={p} />}
                           <TierBadge tier={p.tier} />
@@ -1210,6 +1230,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                                 </span>
                               </span>
                             </Link>
+                            <CopyAddr value={p.mint} label="mint address" />
                             {p.boostPoints > 0 && <BoostChip p={p} />}
                             <button
                               type="button"
