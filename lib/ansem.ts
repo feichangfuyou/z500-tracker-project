@@ -85,7 +85,7 @@ export function mapTier(raw: string | null | undefined) {
 }
 
 export async function fetchAnsemCoins() {
-  return cached("coins", 25_000, async () => {
+  return cached("coins", 20_000, async () => {
     const json = await getJson<{ coins: AnsemCoin[]; total?: number }>("/api/coins");
     return json.coins || [];
   });
@@ -158,6 +158,62 @@ export function activeBoost(raw: AnsemBoost | null | undefined, now = Date.now()
     expiresAt: raw.expiresAt,
     golden: Boolean(raw.golden),
   };
+}
+
+export function creditedBurn(
+  mint: string,
+  projectBurns: Record<string, { amount: number; burners: number }>,
+) {
+  const hit = projectBurns[mint];
+  if (hit) return { amount: hit.amount, burners: hit.burners };
+  if (Object.keys(projectBurns).length) return { amount: 0, burners: 0 };
+  return { amount: null as number | null, burners: null as number | null };
+}
+
+export function projectBurnsByMint(
+  projects: { mint?: string; amount?: number; burners?: number }[],
+) {
+  const out: Record<string, { amount: number; burners: number }> = {};
+  for (const p of projects) {
+    if (!p.mint) continue;
+    out[p.mint] = { amount: p.amount || 0, burners: p.burners || 0 };
+  }
+  return out;
+}
+
+type ProjectBurnRow = { mint?: string; amount?: number; burners?: number };
+
+async function fetchProjectBurnRows(): Promise<ProjectBurnRow[]> {
+  try {
+    const res = await fetch(`${ANSEM}/api/leaderboard/projects`, {
+      headers: { accept: "application/json", "user-agent": "crosscheck/1.0" },
+      next: { revalidate: 20 },
+    });
+    if (res.ok) {
+      const json = (await res.json()) as { projects?: ProjectBurnRow[] };
+      return json.projects || [];
+    }
+  } catch {
+    /* Vercel IPs get 403 on this path; fall through to the Supabase proxy. */
+  }
+  const base = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!base || !key) throw new Error("ansem project-burns unavailable");
+  const res = await fetch(`${base.replace(/\/$/, "")}/functions/v1/ansem-project-burns`, {
+    headers: {
+      accept: "application/json",
+      apikey: key,
+      authorization: `Bearer ${key}`,
+    },
+    next: { revalidate: 20 },
+  });
+  if (!res.ok) throw new Error(`ansem project-burns proxy ${res.status}`);
+  const json = (await res.json()) as { projects?: ProjectBurnRow[] };
+  return json.projects || [];
+}
+
+export async function fetchAnsemProjectBurns() {
+  return cached("project-burns", 25_000, async () => projectBurnsByMint(await fetchProjectBurnRows()));
 }
 
 export async function fetchAnsemBoosts() {

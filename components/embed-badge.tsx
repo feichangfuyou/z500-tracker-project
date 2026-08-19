@@ -6,16 +6,19 @@ import { FlagChips } from "@/components/flag-chips";
 import { LiveNum } from "@/components/live-num";
 import { cn } from "@/lib/cn";
 import { EMBED_CREDIT, crosscheckRankFromDelta, flagLine, type EmbedCoin, type EmbedVariant } from "@/lib/embed";
+import { publicBurn } from "@/lib/score";
 
 export function EmbedBadge({ project, variant }: { project: EmbedCoin; variant: Exclude<EmbedVariant, "card"> }) {
+  const burned = publicBurn({ ...project, burnAmount: 0 });
+  const hasBurn = project.listedBurn != null || project.verifiedBurn != null;
   if (variant === "chip") {
     return (
       <BadgeFrame className="h-10 w-[200px] max-w-full gap-2 px-2">
         <BrandMark className="size-5 shrink-0" />
         <span className="min-w-0 truncate font-mono text-[11px] tabular-nums text-ink">
-          {project.verifiedBurn != null ? (
+          {hasBurn ? (
             <>
-              <LiveNum value={project.verifiedBurn} format="compact" /> $ANSEM
+              <LiveNum value={burned} format="compact" /> $ANSEM
             </>
           ) : project.officialRank != null ? (
             <>
@@ -38,12 +41,12 @@ export function EmbedBadge({ project, variant }: { project: EmbedCoin; variant: 
         <span className="min-w-0">
           <span className="type-eyebrow block">Verified burn</span>
           <span className="mt-1 block truncate font-mono text-sm tabular-nums text-ink">
-            {project.verifiedBurn == null ? (
-              "Burns not verified"
-            ) : (
+            {hasBurn ? (
               <>
-                <LiveNum value={project.verifiedBurn} format="compact" reel /> $ANSEM burned
+                <LiveNum value={burned} format="compact" reel /> $ANSEM burned
               </>
+            ) : (
+              "Burns not verified"
             )}
           </span>
           <span className="mt-1 block truncate font-mono text-[9px] text-dim">{EMBED_CREDIT}</span>

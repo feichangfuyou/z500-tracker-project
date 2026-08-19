@@ -94,4 +94,36 @@ describe("applyRanks", () => {
     expect(ranked[0]?.officialRank).toBeNull();
     expect(ranked[0]?.officialDelta).toBeNull();
   });
+
+  it("counts $ANSEM as listed #1 even when that row is omitted", () => {
+    const alpha = project({
+      id: "ansem:a",
+      name: "Alpha",
+      mint: "mintA",
+      listedMarketCap: 1_000,
+      live: live({ marketCap: 1_000 }),
+    });
+    const ranked = applyRanks([alpha], { at: 0, ranks: {} }, true, 9_000_000);
+    expect(ranked[0]?.officialRank).toBe(2);
+  });
+
+  it("ranks by ansem listed mcap, not Dex overlay", () => {
+    const listedHigh = project({
+      id: "ansem:bullshit",
+      name: "Bull",
+      mint: "mintB",
+      listedMarketCap: 900_000,
+      live: live({ marketCap: 100 }),
+    });
+    const listedLow = project({
+      id: "ansem:hbull",
+      name: "Hbull",
+      mint: "mintH",
+      listedMarketCap: 860_000,
+      live: live({ marketCap: 9_000_000 }),
+    });
+    const ranked = applyRanks([listedHigh, listedLow], { at: 0, ranks: {} });
+    expect(ranked.find((p) => p.id === "ansem:bullshit")?.officialRank).toBe(1);
+    expect(ranked.find((p) => p.id === "ansem:hbull")?.officialRank).toBe(2);
+  });
 });

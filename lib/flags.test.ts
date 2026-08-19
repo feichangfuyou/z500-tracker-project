@@ -57,6 +57,11 @@ describe("projectFlags", () => {
     expect(flags.some((f) => f.id === "unverified")).toBe(true);
   });
 
+  it("accepts z500 project burns when the listed launch wallet is empty", () => {
+    const flags = projectFlags({ ...base, tier: "Diamond", verifiedBurn: 0, listedBurn: 370_566 });
+    expect(flags.some((f) => f.id === "unverified")).toBe(false);
+  });
+
   it("does not flag a clean migrated coin", () => {
     expect(
       projectFlags({

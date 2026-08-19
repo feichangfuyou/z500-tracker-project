@@ -1,5 +1,6 @@
 import { fmtCompact } from "./format";
 import { ansemCoinUrl } from "./links";
+import { publicBurn } from "./score";
 import type { FlagSeverity, Project } from "./types";
 import { serialLabel, serialSeverity } from "./wallets";
 
@@ -64,14 +65,15 @@ export function tierBurnFloor(tier: string): number | null {
   return null;
 }
 
-function burnReasons(p: Pick<Project, "tier" | "verifiedBurn" | "verifyExhausted">): RadarReason[] {
+function burnReasons(p: Pick<Project, "tier" | "verifiedBurn" | "verifyExhausted" | "listedBurn">): RadarReason[] {
   const floor = tierBurnFloor(p.tier);
+  const burned = publicBurn(p);
   if (floor == null) return [];
-  if (p.verifiedBurn == null) {
+  if (p.verifiedBurn == null && p.listedBurn == null) {
     return [{ id: "pending", label: "Burns pending", severity: "warn" }];
   }
-  if (p.verifiedBurn >= floor) return [];
-  if (!p.verifyExhausted) {
+  if (burned >= floor) return [];
+  if (!p.verifyExhausted && p.listedBurn == null) {
     return [
       {
         id: "partial",
@@ -84,17 +86,17 @@ function burnReasons(p: Pick<Project, "tier" | "verifiedBurn" | "verifyExhausted
     {
       id: "short",
       label:
-        p.verifiedBurn === 0
+        burned === 0
           ? `No verified burn · ${p.tier} is ${fmtCompact(floor)}`
-          : `${fmtCompact(p.verifiedBurn)} of ${fmtCompact(floor)} ${p.tier}`,
-      severity: p.verifiedBurn === 0 ? "bad" : "warn",
+          : `${fmtCompact(burned)} of ${fmtCompact(floor)} ${p.tier}`,
+      severity: burned === 0 ? "bad" : "warn",
     },
   ];
 }
 
 export function radarReasons(
   p: Pick<Project, "tier" | "verifiedBurn"> &
-    Partial<Pick<Project, "verifyExhausted" | "walletProvenance" | "sniper" | "launchCount">>,
+    Partial<Pick<Project, "verifyExhausted" | "listedBurn" | "walletProvenance" | "sniper" | "launchCount">>,
 ): RadarReason[] {
   const reasons = burnReasons(p);
   if (p.sniper) {
@@ -129,7 +131,7 @@ export function paidRadar(projects: Project[]): RadarRow[] {
       tier: p.tier,
       imageUrl: p.imageUrl,
       launchWallet: p.launchWallet,
-      verifiedBurn: p.verifiedBurn,
+      verifiedBurn: publicBurn(p),
       verifyExhausted: Boolean(p.verifyExhausted),
       floor,
       officialRank: p.officialRank,

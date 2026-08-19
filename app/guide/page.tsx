@@ -20,7 +20,7 @@ const STEPS = [
   ],
   [
     "Crosscheck watches the same list",
-    "This site pulls those launches and adds checks ansem.io does not show in one place: on-chain burns, listed wallet vs mint-create wallet, holder concentration, and warning flags.",
+    "This site pulls those launches and adds checks ansem.io does not show in one place: credited burns vs launch-wallet scans, listed wallet vs mint-create wallet, holder concentration, and warning flags.",
   ],
   [
     "Read the board, then open a coin",
@@ -33,7 +33,7 @@ const ANSEM_TERMS = [
   ["$ANSEM", "ansem.io’s token. Launch teams burn it. Holders can receive airdrops from new coins."],
   ["Burn", "Sending $ANSEM to a dead address so it cannot be spent again. Used to list or rank a coin."],
   ["Boost", "Paid extra visibility on ansem.io. Active boosts also feed our score."],
-  ["z500", "ansem.io’s official ranking. We show a Listed # estimate from public inputs. Score is ours."],
+  ["z500", "ansem.io’s index. Default sort is circulating mcap; boosts are a badge. Burns unlock Gold/Diamond."],
   ["Tier", "Free, Bronze, Gold, or Diamond on ansem.io. Higher tiers usually mean more $ANSEM burned."],
   ["Airdrop", "New-coin tokens sent to $ANSEM holders. “Airdrop” on this board is that supply’s dollar value."],
 ] as const;
@@ -44,9 +44,9 @@ const BOARD_COLS = [
   ["Tier", "ansem.io listing tier."],
   ["Mcap", "Circulating market cap from DexScreener, with the listed figure as fallback."],
   ["Airdrop", "Dollar value of tokens airdropped to $ANSEM holders."],
-  ["Burned", "How much $ANSEM we verified on-chain from the launch wallet."],
-  ["Score", "Our ranking: airdrop value + verified burns + active boosts. Invented here — not z500’s formula."],
-  ["Listed", "Where the coin sits if we rank public ansem.io inputs only (airdrop value + boosts, no on-chain burns)."],
+  ["Burned", "How much $ANSEM z500 credits to this coin (all burners). We still scan the listed launch wallet on-chain."],
+  ["Score", "Our ranking: airdrop value + verified burns + active boosts. Independent of z500’s mcap sort."],
+  ["Listed", "Same default as z500: circulating market cap, counting $ANSEM as #1 even though that row is omitted here."],
 ] as const;
 
 const FLAGS = [
@@ -173,7 +173,7 @@ export default function GuidePage() {
           <ul className="mt-4 list-disc space-y-2 pl-5 text-pretty text-sm text-muted">
             <li>A scorecard on each coin: wallet, burns, holders, insiders, snipers, serial launches, liquidity.</li>
             <li>Live board with market cap, airdrop value, burns, boosts, and two ranks (ours vs listed-order).</li>
-            <li>On-chain $ANSEM burn scans from the launch wallet.</li>
+            <li>On-chain $ANSEM burn scans from the launch wallet, plus the project total z500 credits.</li>
             <li>Creator check: listed launch wallet vs the mint-create wallet we found.</li>
             <li>Holder concentration, same-slot buyers, and serial-deployer counts.</li>
             <li>Daily top-25 snapshot, known wallets, airdrop P&amp;L lookup, and embeddable badges.</li>
@@ -185,7 +185,7 @@ export default function GuidePage() {
           <h2 className="display text-lg text-ink">The board</h2>
           <p className="mt-3 text-pretty text-sm text-muted">
             Filters along the top (On curve, Migrated, Boosted, Flagged) narrow the list. Live keeps prices moving.
-            Listed is the default sort (public ansem.io inputs). Mcap / Score are overlays. Watch stars a coin in this
+            Listed is the default sort (z500 mcap). Mcap / Score are overlays. Watch stars a coin in this
             browser.
           </p>
           <dl className="mt-6 divide-y divide-border border-t border-border">

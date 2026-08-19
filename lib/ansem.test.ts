@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bannerUrlFrom, enhancedAtFrom, isEnhanced, mapAnsemMarket, mapDexPair, mapPumpCoin } from "./ansem";
+import { bannerUrlFrom, creditedBurn, enhancedAtFrom, isEnhanced, mapAnsemMarket, mapDexPair, mapPumpCoin, projectBurnsByMint } from "./ansem";
 
 describe("mapPumpCoin", () => {
   it("maps a pump.fun coin into the discovery shape", () => {
@@ -101,5 +101,25 @@ describe("mapDexPair", () => {
         baseToken: { address: "0xabc", name: "Frog", symbol: "FROG" },
       }),
     ).toBeNull();
+  });
+});
+
+describe("projectBurnsByMint", () => {
+  it("indexes credited project burns by mint", () => {
+    expect(
+      projectBurnsByMint([
+        { mint: "eye", amount: 370_566, burners: 8 },
+        { amount: 1 },
+      ]),
+    ).toEqual({ eye: { amount: 370_566, burners: 8 } });
+  });
+});
+
+describe("creditedBurn", () => {
+  it("uses 0 when the feed loaded and the mint is not on the project board", () => {
+    const feed = projectBurnsByMint([{ mint: "eye", amount: 370_566, burners: 8 }]);
+    expect(creditedBurn("eye", feed)).toEqual({ amount: 370_566, burners: 8 });
+    expect(creditedBurn("rtm", feed)).toEqual({ amount: 0, burners: 0 });
+    expect(creditedBurn("rtm", {})).toEqual({ amount: null, burners: null });
   });
 });

@@ -12,8 +12,9 @@ describe("activeBoost", () => {
 });
 
 describe("officialScore", () => {
-  it("uses listed airdrop mcap plus boosts, ignoring burns", () => {
-    expect(officialScore({ listedAirdropMcap: 1000, boostPoints: 10 })).toBe(600 + 2500);
+  it("follows z500: circulating mcap, ignoring airdrop and boosts", () => {
+    expect(officialScore({ listedAirdropMcap: 1000, listedMarketCap: 50_000, boostPoints: 10 })).toBe(50_000);
+    expect(officialScore({ listedAirdropMcap: 1000, listedMarketCap: 0, live: { marketCap: 9 } })).toBe(0);
   });
 });
 

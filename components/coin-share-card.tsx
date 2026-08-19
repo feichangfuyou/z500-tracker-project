@@ -6,6 +6,7 @@ import { LiveNum } from "@/components/live-num";
 import { EMBED_CREDIT } from "@/lib/embed";
 import { fmtCompact, fmtRank, fmtUsd, shortAddr } from "@/lib/format";
 import { solscanTx } from "@/lib/links";
+import { publicBurn } from "@/lib/score";
 import type { Dossier, Project } from "@/lib/types";
 
 export function CoinShareCard({ project, dossier }: { project: Project; dossier: Dossier | null }) {
@@ -36,7 +37,7 @@ export function CoinShareCard({ project, dossier }: { project: Project; dossier:
         <div>
           <dt className="type-eyebrow">Burned</dt>
           <dd className="text-ink">
-            <LiveNum value={p.verifiedBurn} format={fmtCompact} reel />
+            <LiveNum value={publicBurn(p)} format={fmtCompact} reel />
           </dd>
         </div>
         <div>

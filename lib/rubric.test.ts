@@ -83,6 +83,13 @@ describe("projectRubric", () => {
     expect(projectRubric({ ...clean, holderTop10Pct: 0.8 }).rows.find((r) => r.id === "holders")?.mark).toBe("fail");
   });
 
+  it("passes when z500 credits project burns the launch wallet did not hold", () => {
+    const row = projectRubric({ ...clean, tier: "Diamond", verifiedBurn: 0, listedBurn: 370_566 }).rows.find(
+      (r) => r.id === "burns",
+    );
+    expect(row?.mark).toBe("pass");
+  });
+
   it("fails a claimed burn the chain does not back", () => {
     const row = projectRubric({ ...clean, burnAmount: 100, verifiedBurn: 10 }).rows.find((r) => r.id === "burns");
     expect(row?.mark).toBe("fail");

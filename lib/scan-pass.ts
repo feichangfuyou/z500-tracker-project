@@ -1,4 +1,4 @@
-import { activeBoost, fetchAnsemBoosts, fetchAnsemCoins, fetchAnsemMarket, imageUrlFrom, mapTier, type AnsemBoost, type AnsemCoin } from "./ansem";
+import { activeBoost, creditedBurn, fetchAnsemBoosts, fetchAnsemCoins, fetchAnsemMarket, fetchAnsemProjectBurns, imageUrlFrom, mapTier, type AnsemBoost, type AnsemCoin } from "./ansem";
 import { alertContext, tapeForAlerts } from "./alert-filter";
 import { ingestWalletScan, namedLaunchForWallet } from "./burn-ledger";
 import { fetchDexBatch, overlayDex } from "./dex";
@@ -8,7 +8,7 @@ import { isPaidTier } from "./paid-radar";
 import { buildIndexDay, pushIndexDay } from "./index-day";
 import { notifyTape } from "./notify";
 import { provenanceCacheForEnrich, resolveProvenance } from "./provenance";
-import { airdropMcapUsd, computeScore, officialScore, ranksFromOrder } from "./score";
+import { airdropMcapUsd, computeScore, officialScore, publicBurn, ranksFromOrder } from "./score";
 import { dexRefreshBudget, heliusPaceMs, nextScanTargets, pendingFirstPass, scanBudget, SCAN_PASS_MS } from "./scan";
 import { fetchHolderRadar, fetchOnchainBurns } from "./solana";
 import { readStore, withStore } from "./store";
@@ -175,9 +175,10 @@ export async function runScanPass(opts?: { maxMs?: number }) {
     }
   }
 
-  const [boosts, market] = await Promise.all([
+  const [boosts, market, projectBurns] = await Promise.all([
     fetchAnsemBoosts().catch(() => ({} as Record<string, AnsemBoost>)),
     fetchAnsemMarket().catch(() => null),
+    fetchAnsemProjectBurns().catch(() => ({}) as Record<string, { amount: number; burners: number }>),
   ]);
   const boostTape = detectBoostEvents(store.boostSeen || {}, namedCoins, boosts, now);
   freshTape.push(...boostTape.events);
@@ -201,6 +202,7 @@ export async function runScanPass(opts?: { maxMs?: number }) {
     const live = overlayDex(listed, dex[c.mint]?.live);
     live.airdropMcap = airdropMcapUsd(live.priceUsd, c.airdropTotal) ?? live.airdropMcap;
     const burn = c.creatorWallet ? burns[c.creatorWallet] : undefined;
+    const listedBurn = creditedBurn(c.mint, projectBurns).amount;
     return {
       mint: c.mint,
       score: computeScore({
@@ -209,16 +211,21 @@ export async function runScanPass(opts?: { maxMs?: number }) {
         burnAmount: 0,
         burnPriceRef: ansemPrice,
         boostPoints: boost?.amount || 0,
+        listedBurn,
       }),
       official: officialScore({
-        listedAirdropMcap,
         listedMarketCap: c.marketCapUsd ?? null,
-        boostPoints: boost?.amount || 0,
       }),
+      listedBurn,
+      walletBurn: burn?.verifiedBurn ?? null,
     };
   });
   const ranked = [...scored].sort((a, b) => b.score - a.score);
-  const officialOrder = [...scored].sort((a, b) => b.official - a.official);
+  const indexMcap = coins.find((c) => c.mint === ANSEM_MINT)?.marketCapUsd || 0;
+  const officialOrder = [
+    ...scored,
+    ...(indexMcap > 0 ? [{ mint: "__z500_index__", score: 0, official: indexMcap, listedBurn: null, walletBurn: null }] : []),
+  ].sort((a, b) => b.official - a.official);
 
   const hotMints = ranked.map((r) => r.mint);
   const skipSide = burst || catchup;
@@ -312,7 +319,6 @@ export async function runScanPass(opts?: { maxMs?: number }) {
       buildIndexDay(
         ranked.map((r) => {
           const coin = visible.find((c) => c.mint === r.mint);
-          const burn = coin?.creatorWallet ? burns[coin.creatorWallet] : undefined;
           const official = officialOrder.findIndex((o) => o.mint === r.mint) + 1;
           return {
             mint: r.mint,
@@ -321,7 +327,11 @@ export async function runScanPass(opts?: { maxMs?: number }) {
             score: r.score,
             officialRank: official || null,
             airdropMcap: airdropMcapUsd(coin?.priceUsd, coin?.airdropTotal),
-            burned: burn?.verifiedBurn ?? null,
+            burned: publicBurn({
+              verifiedBurn: r.walletBurn,
+              burnAmount: 0,
+              listedBurn: r.listedBurn,
+            }),
             imageUrl: imageUrlFrom(coin?.imageUrl),
             marketCap: dex[r.mint]?.live.marketCap ?? coin?.marketCapUsd ?? null,
             change24h: dex[r.mint]?.live.change24h ?? coin?.change24hPct ?? null,

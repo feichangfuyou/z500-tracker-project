@@ -30,7 +30,7 @@ import { publicImageUrl } from "@/lib/media";
 import { ANSEM_AIRDROP, ansemCoinUrl, solscanAccount, solscanTx, tradeLinks } from "@/lib/links";
 import { projectFlags, provenanceLabel } from "@/lib/flags";
 import { projectRubric } from "@/lib/rubric";
-import { computeScore } from "@/lib/score";
+import { computeScore, publicBurn } from "@/lib/score";
 import { simulateBurn } from "@/lib/sim";
 import type { BoardResponse, Dossier, LedgerHit, Project } from "@/lib/types";
 
@@ -373,7 +373,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
         <dl className="mt-8 grid grid-cols-2 gap-4 border-t border-border pt-6 sm:grid-cols-4">
           <Stat k="Mcap" v={<LiveNum value={p.live?.marketCap} format={fmtUsd} reel />} />
           <Stat k="Airdrop" v={<LiveNum value={p.live?.airdropMcap} format={fmtUsd} reel />} />
-          <Stat k="Burned" v={<LiveNum value={p.verifiedBurn} format={fmtCompact} reel />} />
+          <Stat k="Burned" v={<LiveNum value={publicBurn(p)} format={fmtCompact} reel />} />
           <Stat k="Score" v={<LiveNum value={p.score} format={fmtUsd} reel />} />
           <Stat k="Price" v={<LiveNum value={p.live?.priceUsd} format={fmtPrice} reel />} />
           <Stat
@@ -403,6 +403,13 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
             <h2 className="type-eyebrow">On-chain</h2>
             <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
               <Stat k="Launch" v={<WalletCell wallet={p.launchWallet} />} size="sm" />
+              {p.listedBurn != null && p.listedBurn > 0 && p.verifiedBurn != null && p.verifiedBurn !== p.listedBurn ? (
+                <Stat
+                  k="Wallet burn"
+                  v={<LiveNum value={p.verifiedBurn} format={fmtCompact} />}
+                  size="sm"
+                />
+              ) : null}
               <Stat
                 k="Creator check"
                 v={provenanceLabel(p.walletProvenance)}

@@ -2,6 +2,7 @@ import { ansemCoinUrl } from "./links";
 import { publicProvenance } from "./flags";
 import { CDN_CACHE_LONG } from "./http";
 import { publicImageUrl } from "./media";
+import { publicBurn } from "./score";
 import type { BoardResponse, Project, TapeEvent } from "./types";
 
 export const PUBLIC_CORS = {
@@ -16,7 +17,7 @@ export const PUBLIC_HEADERS = {
 };
 
 export const RANK_NOTE =
-  "officialRank is a listed-order estimate from public ansem.io inputs (airdrop value + boosts), not the unpublished z500 formula. score is a Crosscheck proxy that also uses verified burns.";
+  "officialRank follows z500’s default sort: circulating market cap, including $ANSEM at #1. burned is the project total ansem.io credits (all burners), not only the listed launch wallet. score is Crosscheck’s independent ranking (airdrop + burns + boosts).";
 
 export function publicCoin(p: Project) {
   return {
@@ -31,11 +32,11 @@ export function publicCoin(p: Project) {
     officialRank: p.officialRank,
     listedRank: p.officialRank,
     officialDelta: p.officialDelta,
-    rankBasis: "listed-inputs" as const,
+    rankBasis: "z500-mcap" as const,
     marketCap: p.live?.marketCap ?? null,
     airdropMcap: p.live?.airdropMcap ?? null,
-    burned: p.verifiedBurn,
-    burnedComplete: Boolean(p.verifyExhausted),
+    burned: publicBurn(p),
+    burnedComplete: p.listedBurn != null || Boolean(p.verifyExhausted),
     boostPoints: p.boostPoints,
     flags: p.flags,
     launchWallet: p.launchWallet,
@@ -92,7 +93,9 @@ export function compactProject(p: Project): Project {
     boostGolden: p.boostGolden,
     boostExpiresAt: p.boostExpiresAt,
     listedAirdropMcap: null,
-    listedMarketCap: null,
+    listedMarketCap: p.listedMarketCap,
+    listedBurn: p.listedBurn,
+    listedBurners: p.listedBurners,
     officialRank: p.officialRank,
     officialDelta: p.officialDelta,
     score: p.score,

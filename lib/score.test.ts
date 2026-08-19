@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeScore, effectiveBurn } from "./score";
+import { computeScore, effectiveBurn, publicBurn } from "./score";
 import type { LiveData } from "./types";
 
 function live(partial: Partial<LiveData>): LiveData {
@@ -24,6 +24,14 @@ describe("effectiveBurn", () => {
   });
   it("falls back to self-reported", () => {
     expect(effectiveBurn({ verifiedBurn: null, burnAmount: 7 })).toBe(7);
+  });
+});
+
+describe("publicBurn", () => {
+  it("prefers the project total z500 credits over the launch-wallet scan", () => {
+    expect(publicBurn({ verifiedBurn: 0, burnAmount: 0, listedBurn: 370_566 })).toBe(370_566);
+    expect(publicBurn({ verifiedBurn: 163_505, burnAmount: 0, listedBurn: 0 })).toBe(0);
+    expect(publicBurn({ verifiedBurn: 12, burnAmount: 99 })).toBe(12);
   });
 });
 

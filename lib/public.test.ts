@@ -32,10 +32,52 @@ describe("publicCoin", () => {
     expect(coin.launchCount).toBe(0);
     expect(coin.listedRank).toBe(3);
     expect(coin.scoreKind).toBe("proxy");
-    expect(coin.rankBasis).toBe("listed-inputs");
+    expect(coin.rankBasis).toBe("z500-mcap");
     expect(coin.burnedComplete).toBe(false);
     expect(coin.bannerUrl).toBe("https://ansem.io/api/banners/abc");
     expect(coin.enhancedAt).toBe("2026-08-18T13:57:56.400Z");
+  });
+
+  it("publishes z500 project burns, not only the launch-wallet scan", () => {
+    const coin = publicCoin({
+      mint: "Mint111111111111111111111111111111111111111",
+      name: "Eye",
+      ticker: "EYE",
+      slug: "eye",
+      tier: "Diamond",
+      score: 1,
+      officialRank: 3,
+      officialDelta: 0,
+      live: null,
+      verifiedBurn: 0,
+      listedBurn: 370_566,
+      verifyExhausted: true,
+      flags: [],
+      launchWallet: "Wallet1111111111111111111111111111111111111",
+    } as unknown as Project);
+    expect(coin.burned).toBe(370_566);
+    expect(coin.burnedComplete).toBe(true);
+  });
+
+  it("publishes 0 credited burns when z500 has none for the coin", () => {
+    const coin = publicCoin({
+      mint: "Mint111111111111111111111111111111111111111",
+      name: "Rtm",
+      ticker: "RTM",
+      slug: "rtm",
+      tier: "Free",
+      score: 1,
+      officialRank: 11,
+      officialDelta: 0,
+      live: null,
+      verifiedBurn: 163_505,
+      listedBurn: 0,
+      verifyExhausted: true,
+      flags: [],
+      launchWallet: "Wallet1111111111111111111111111111111111111",
+    } as unknown as Project);
+    expect(coin.burned).toBe(0);
+    expect(coin.burnedComplete).toBe(true);
   });
 
   it("drops unused board fields", () => {

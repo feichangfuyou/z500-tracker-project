@@ -1,5 +1,5 @@
 import { INSIDER_BAD, INSIDER_WARN } from "./radar";
-import { effectiveBurn } from "./score";
+import { publicBurn } from "./score";
 import type { Flag, Project, ProvenanceStatus } from "./types";
 import { serialLabel, serialSeverity } from "./wallets";
 
@@ -31,6 +31,7 @@ type FlagInput = Pick<
   | "status"
   | "tier"
   | "verifiedBurn"
+  | "listedBurn"
   | "burnAmount"
   | "addedAt"
   | "launchCount"
@@ -69,15 +70,15 @@ export function projectFlags(p: FlagInput, now = Date.now()): Flag[] {
     flags.push({ id: "thinLiq", label: "Thin liquidity", severity: liq < 1_000 ? "bad" : "warn" });
   }
 
-  if (p.burnAmount > 0 && p.verifiedBurn != null && p.verifiedBurn < p.burnAmount * 0.75) {
+  if (p.burnAmount > 0 && publicBurn(p) < p.burnAmount * 0.75) {
     flags.push({ id: "burnGap", label: "Burn below claim", severity: "bad" });
   }
 
   const paidTier = p.tier === "Gold" || p.tier === "Diamond";
-  if (paidTier && p.verifiedBurn == null) {
+  const burned = publicBurn(p);
+  if (paidTier && p.verifiedBurn == null && p.listedBurn == null) {
     flags.push({ id: "unverified", label: "Burns unchecked", severity: "warn" });
-  }
-  if (paidTier && p.verifiedBurn === 0 && effectiveBurn(p) === 0) {
+  } else if (paidTier && burned === 0) {
     flags.push({ id: "unverified", label: "No verified burn", severity: "warn" });
   }
 

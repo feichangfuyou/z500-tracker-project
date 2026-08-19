@@ -1,6 +1,7 @@
 import { fmtCompact, fmtUsd } from "./format";
 import { LIQ_THIN, TOP10_BAD, TOP10_WARN, projectFlags, riskScore } from "./flags";
 import { INSIDER_BAD, INSIDER_WARN } from "./radar";
+import { publicBurn } from "./score";
 import type { Project } from "./types";
 import { SERIAL_BAD, SERIAL_WARN } from "./wallets";
 
@@ -31,6 +32,7 @@ export type RubricInput = Pick<
   | "status"
   | "tier"
   | "verifiedBurn"
+  | "listedBurn"
   | "burnAmount"
   | "addedAt"
   | "launchCount"
@@ -87,22 +89,23 @@ function walletRow(p: RubricInput): RubricRow {
 
 function burnsRow(p: RubricInput): RubricRow {
   const paid = p.tier === "Gold" || p.tier === "Diamond";
-  if (p.burnAmount > 0 && p.verifiedBurn != null && p.verifiedBurn < p.burnAmount * 0.75) {
+  const burned = publicBurn(p);
+  if (p.burnAmount > 0 && burned < p.burnAmount * 0.75) {
     return {
       id: "burns",
       label: "Burns",
       mark: "fail",
-      note: `On-chain ${fmtCompact(p.verifiedBurn)} vs claimed ${fmtCompact(p.burnAmount)}`,
+      note: `Listed ${fmtCompact(burned)} vs claimed ${fmtCompact(p.burnAmount)}`,
     };
   }
-  if (paid && p.verifiedBurn == null) {
+  if (paid && p.verifiedBurn == null && p.listedBurn == null) {
     return { id: "burns", label: "Burns", mark: "warn", note: "Gold/Diamond, not scanned yet" };
   }
-  if (paid && p.verifiedBurn === 0) {
+  if (paid && burned === 0) {
     return { id: "burns", label: "Burns", mark: "warn", note: "No verified $ANSEM burn" };
   }
-  if (p.verifiedBurn != null && p.verifiedBurn > 0) {
-    return { id: "burns", label: "Burns", mark: "pass", note: `${fmtCompact(p.verifiedBurn)} $ANSEM verified` };
+  if (burned > 0) {
+    return { id: "burns", label: "Burns", mark: "pass", note: `${fmtCompact(burned)} $ANSEM credited` };
   }
   if (p.verifiedBurn === 0) {
     return { id: "burns", label: "Burns", mark: "pass", note: "None in the scanned window" };

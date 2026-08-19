@@ -47,6 +47,7 @@ export function LiveEmbed({
           officialRank: c.officialRank ?? prev.officialRank,
           officialDelta: c.officialDelta ?? prev.officialDelta,
           verifiedBurn: c.burned ?? prev.verifiedBurn,
+          listedBurn: c.burned ?? prev.listedBurn,
           boostPoints: c.boostPoints ?? prev.boostPoints,
           flags: c.flags?.length ? c.flags : prev.flags,
           live: prev.live

@@ -209,6 +209,8 @@ export type Project = {
   boostExpiresAt: string | null;
   listedAirdropMcap: number | null;
   listedMarketCap: number | null;
+  listedBurn?: number | null;
+  listedBurners?: number | null;
   officialRank: number | null;
   officialDelta: number | null;
   score: number;

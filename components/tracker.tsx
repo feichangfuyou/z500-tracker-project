@@ -46,7 +46,7 @@ import {
   subscribeHeaderChrome,
 } from "@/lib/header-chrome";
 import { isValidAddress } from "@/lib/guardrails";
-import { computeScore } from "@/lib/score";
+import { computeScore, publicBurn } from "@/lib/score";
 import { projectFlags } from "@/lib/flags";
 import { TIERS, type BoardResponse, type Project } from "@/lib/types";
 
@@ -387,8 +387,8 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
           bv = b.live?.change24h || 0;
           break;
         case "burn":
-          av = a.verifiedBurn ?? a.burnAmount ?? 0;
-          bv = b.verifiedBurn ?? b.burnAmount ?? 0;
+          av = publicBurn(a);
+          bv = publicBurn(b);
           break;
         case "boost":
           av = a.boostPoints || 0;
@@ -709,15 +709,15 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
           <div>
             <p className="type-eyebrow">1. ansem.io</p>
             <p className="mt-2 text-pretty text-sm text-muted">
-              Coins go live there. Teams burn $ANSEM and can buy boosts to move the official z500 list. Launch, claim,
-              and trade still happen on ansem.io.
+              Coins go live there. z500 sorts by market cap. Burns unlock Gold/Diamond. Boosts are a paid badge. Launch,
+              claim, and trade still happen on ansem.io.
             </p>
           </div>
           <div>
             <p className="type-eyebrow">2. This board</p>
             <p className="mt-2 text-pretty text-sm text-muted">
-              The table below is our live list. Listed # uses public ansem.io inputs (airdrop value + boosts). Score
-              adds verified burns — that is not z500.
+              The table below is our live list. Listed # is z500’s default: circulating mcap. Score
+              is our independent rank — airdrop value + verified burns + boosts.
             </p>
           </div>
           <div>
@@ -1082,7 +1082,8 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                 <span className="text-muted">Board</span> is our rank.{" "}
                 <span className="text-muted">Listed</span> is ansem.io order.{" "}
                 <span className="text-muted">Airdrop</span> is value sent to $ANSEM holders.{" "}
-                <span className="text-muted">Score</span> is airdrop + burns + boosts — not z500.
+                <span className="text-muted">Listed</span> is z500 mcap.{" "}
+                <span className="text-muted">Score</span> is airdrop + burns + boosts.
               </p>
             )}
             <div
@@ -1133,7 +1134,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                             )}
                           </span>
                         </span>
-                        <span title="ansem.io order from public airdrop + boosts. Not the unpublished z500 formula.">
+                        <span title="z500 default order: circulating market cap on ansem.io. Boosts are a badge.">
                           <span className="type-th">Listed</span>{" "}
                           <span className="text-ink">
                             {p.officialRank == null ? (
@@ -1185,7 +1186,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                     />
                     <MiniStat
                       k="Burned"
-                      hint="$ANSEM burned from the launch wallet"
+                      hint="$ANSEM z500 credits to this coin (all burners). Launch-wallet scan is the independent check."
                       v={
                         <span className="inline-flex min-w-0 items-baseline gap-1">
                           <BurnCell
@@ -1472,16 +1473,16 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
 
         <div id="notes" className="mt-10 max-w-[720px] space-y-3 text-pretty text-[12.5px] leading-relaxed text-dim">
           <p>
-            Rank here follows the sort you picked. Listed # uses public ansem.io inputs (airdrop value + boosts) — not
-            the unpublished z500 formula. Score adds verified $ANSEM burns.{" "}
+            Rank here follows the sort you picked. Listed # is z500’s default (circulating mcap). Score is Crosscheck
+            — airdrop + verified burns + boosts.{" "}
             <Link href="/guide" className="text-muted hover:text-ink">
               <ScrambleText text="How to read this site" />
             </Link>
             .
           </p>
           <p>
-            Prices come from ansem.io and DexScreener. Burns are checked on Solana from the launch wallet, in the
-            scanned window. Missing a coin? Add it. Not financial advice. Session cookie only. See{" "}
+            Prices come from ansem.io and DexScreener. Burned is the project total z500 credits; we still scan the launch
+            wallet independently. Missing a coin? Add it. Not financial advice. Session cookie only. See{" "}
             <Link href="/privacy" className="text-muted hover:text-ink">
               <ScrambleText text="privacy" />
             </Link>
@@ -1783,10 +1784,12 @@ function BurnCell({
   onDeep: () => void;
   onBurn: (v: string) => void;
 }) {
+  const credited = p.listedBurn != null;
+  const burned = publicBurn(p);
   const amount =
-    p.verifiedBurn != null ? (
+    credited || p.verifiedBurn != null ? (
       <span className="font-mono text-xs font-medium tabular-nums text-good">
-        <LiveNum value={p.verifiedBurn} format={fmtCompact} flash={false} />
+        <LiveNum value={burned} format={fmtCompact} flash={false} />
       </span>
     ) : canEdit ? (
       <input
@@ -1812,11 +1815,17 @@ function BurnCell({
 
   return (
     <div className="flex min-w-0 flex-col items-start gap-1 md:items-end">
-      {p.verifiedBurn != null ? (
+      {credited || p.verifiedBurn != null ? (
         <>
           {amount}
           <span className="font-mono text-[9px] uppercase text-good">
-            {p.verifyExhausted ? "on-chain" : "partial scan"}
+            {credited
+              ? p.verifiedBurn != null && p.verifiedBurn !== p.listedBurn
+                ? `listed · wallet ${fmtCompact(p.verifiedBurn)}`
+                : "listed"
+              : p.verifyExhausted
+                ? "on-chain"
+                : "partial scan"}
           </span>
         </>
       ) : canEdit ? (

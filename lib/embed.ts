@@ -1,4 +1,5 @@
 import { fmtCompact } from "./format";
+import { publicBurn } from "./score";
 import type { Flag, Project } from "./types";
 
 export const EMBED_VARIANTS = ["card", "chip", "burn", "flags", "delta"] as const;
@@ -16,7 +17,7 @@ export const EMBED_SIZES: Record<EmbedVariant, { width: number; height: number; 
 
 export type EmbedCoin = Pick<
   Project,
-  "mint" | "name" | "ticker" | "verifiedBurn" | "officialRank" | "officialDelta" | "flags" | "slug" | "score"
+  "mint" | "name" | "ticker" | "verifiedBurn" | "listedBurn" | "officialRank" | "officialDelta" | "flags" | "slug" | "score"
 >;
 
 export function parseEmbedVariant(raw: string | null | undefined): EmbedVariant {
@@ -40,9 +41,9 @@ export function crosscheckRankFromDelta(p: Pick<EmbedCoin, "officialRank" | "off
   return p.officialRank - p.officialDelta;
 }
 
-export function burnLine(p: Pick<EmbedCoin, "verifiedBurn">) {
-  if (p.verifiedBurn == null) return "Burns not verified";
-  return `${fmtCompact(p.verifiedBurn)} $ANSEM burned`;
+export function burnLine(p: Pick<EmbedCoin, "verifiedBurn" | "listedBurn">) {
+  if (p.listedBurn == null && p.verifiedBurn == null) return "Burns not verified";
+  return `${fmtCompact(publicBurn({ ...p, burnAmount: 0 }))} $ANSEM burned`;
 }
 
 export function deltaLine(p: Pick<EmbedCoin, "officialRank" | "officialDelta">) {
@@ -61,7 +62,7 @@ export function flagLine(flags: Flag[]) {
 }
 
 export function chipLine(p: EmbedCoin) {
-  if (p.verifiedBurn != null) return burnLine(p);
+  if (p.listedBurn != null || p.verifiedBurn != null) return burnLine(p);
   if (p.officialRank != null) return deltaLine(p);
   if (p.flags.length) return flagLine(p.flags);
   return p.ticker ? `$${p.ticker}` : p.name;

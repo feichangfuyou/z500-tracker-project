@@ -3,6 +3,8 @@ import {
   fetchAnsemBoosts,
   fetchAnsemCoins,
   fetchAnsemMarket,
+  fetchAnsemProjectBurns,
+  creditedBurn,
   fetchAnsemStats,
   fetchDexFallbackCoins,
   fetchPumpFallbackCoins,
@@ -26,7 +28,7 @@ import { launchCounts } from "./wallets";
 type BoardPayload = Omit<BoardResponse, "sid">;
 
 const BOARD_FRESH_MS = 8_000;
-const BOARD_STALE_MS = 60_000;
+const BOARD_STALE_MS = 20_000;
 
 type BoardMemo = {
   at: number;
@@ -68,11 +70,19 @@ function boostFor(slug: string | undefined, boosts: Record<string, AnsemBoost>, 
   };
 }
 
-export function applyRanks(projects: Project[], snapshot: RankSnapshot, listedFeed = true): Project[] {
+export function applyRanks(
+  projects: Project[],
+  snapshot: RankSnapshot,
+  listedFeed = true,
+  indexMcap = 0,
+): Project[] {
   const ansem = listedFeed ? projects.filter((p) => p.source === "ansem") : [];
   const official = ranksFromOrder(
-    [...ansem]
-      .sort((a, b) => officialScore(b) - officialScore(a) || a.name.localeCompare(b.name))
+    [
+      ...ansem.map((p) => ({ id: p.id, name: p.name, mcap: officialScore(p) })),
+      ...(indexMcap > 0 ? [{ id: "__z500_index__", name: "\0", mcap: indexMcap }] : []),
+    ]
+      .sort((a, b) => b.mcap - a.mcap || a.name.localeCompare(b.name))
       .map((p) => p.id),
   );
   const crosscheckAnsem = ranksFromOrder(
@@ -147,7 +157,13 @@ async function assembleBoard(): Promise<BoardPayload> {
 
   const now = Date.now();
   const [market, stats, boosts] = await extrasP;
+  const projectBurns = await fetchAnsemProjectBurns().catch((err) => {
+    console.error("ansem project-burns", err);
+    return {} as Record<string, { amount: number; burners: number }>;
+  });
+  if (!Object.keys(projectBurns).length) console.error("ansem project-burns empty");
 
+  const indexMcap = coins.find((c) => c.mint === ANSEM_MINT)?.marketCapUsd || 0;
   const visible = coins.filter((c) => !c.nsfw && c.mint !== ANSEM_MINT);
   const hotMints = [...visible]
     .sort(
@@ -223,6 +239,8 @@ async function assembleBoard(): Promise<BoardPayload> {
         ...boost,
         listedAirdropMcap: listed.airdropMcap,
         listedMarketCap: listed.marketCap,
+        listedBurn: creditedBurn(c.mint, projectBurns).amount,
+        listedBurners: creditedBurn(c.mint, projectBurns).burners,
         officialRank: null,
         officialDelta: null,
         score: 0,
@@ -284,6 +302,8 @@ async function assembleBoard(): Promise<BoardPayload> {
         ...boost,
         listedAirdropMcap: null,
         listedMarketCap: live?.marketCap ?? null,
+        listedBurn: creditedBurn(p.mint, projectBurns).amount,
+        listedBurners: creditedBurn(p.mint, projectBurns).burners,
         officialRank: null,
         officialDelta: null,
         score: 0,
@@ -301,7 +321,7 @@ async function assembleBoard(): Promise<BoardPayload> {
     p.flags = projectFlags(p);
   }
 
-  const ranked = applyRanks(projects, store.rankSnapshot, isListedFeed(feedSource));
+  const ranked = applyRanks(projects, store.rankSnapshot, isListedFeed(feedSource), indexMcap);
   const indexed = uniqueVerifiedBurns(store.burns);
   const coverage = coverageMeter(ranked, store.burns, {
     ledger: store.burnLedger,

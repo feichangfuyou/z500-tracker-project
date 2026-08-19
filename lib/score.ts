@@ -8,6 +8,14 @@ export function effectiveBurn(p: Pick<Project, "verifiedBurn" | "burnAmount">) {
     : p.burnAmount || 0;
 }
 
+/** Burns z500 credits to the coin (project leaderboard), else launch-wallet verified. */
+export function publicBurn(
+  p: Pick<Project, "verifiedBurn"> & { burnAmount?: number; listedBurn?: number | null },
+) {
+  if (p.listedBurn != null) return p.listedBurn;
+  return effectiveBurn({ verifiedBurn: p.verifiedBurn, burnAmount: p.burnAmount || 0 });
+}
+
 export function airdropMcapUsd(price: number | null | undefined, total: number | null | undefined) {
   if (!price || !total) return null;
   return price * total;
@@ -20,21 +28,25 @@ function mcapInput(airdropMcap: number | null | undefined, circulating: number |
 
 /** Directional proxy: airdropped-supply mcap + burn value + active boosts. Not the official index formula. */
 export function computeScore(
-  p: Pick<Project, "live" | "verifiedBurn" | "burnAmount" | "burnPriceRef"> & { boostPoints?: number },
+  p: Pick<Project, "live" | "verifiedBurn" | "burnPriceRef"> & {
+    burnAmount?: number;
+    boostPoints?: number;
+    listedBurn?: number | null;
+  },
 ) {
   const mcap = mcapInput(p.live?.airdropMcap, p.live?.marketCap);
-  const burnUsd = effectiveBurn(p) * (p.burnPriceRef || 0);
+  const burnUsd = publicBurn(p) * (p.burnPriceRef || 0);
   return mcap * 0.6 + burnUsd * 40 + (p.boostPoints || 0) * BOOST_WEIGHT;
 }
 
-/** Listed-order estimate from public ansem.io inputs. Not the unpublished z500 formula. */
+/** z500’s default sort: circulating mcap from ansem.io. Never Dex overlay. */
 export function officialScore(p: {
   listedAirdropMcap?: number | null;
   listedMarketCap?: number | null;
+  live?: { marketCap?: number | null } | null;
   boostPoints?: number;
 }) {
-  const mcap = mcapInput(p.listedAirdropMcap, p.listedMarketCap);
-  return mcap * 0.6 + (p.boostPoints || 0) * BOOST_WEIGHT;
+  return p.listedMarketCap || 0;
 }
 
 export function ranksFromOrder(ids: string[]) {

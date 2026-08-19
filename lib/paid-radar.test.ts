@@ -130,4 +130,18 @@ describe("paidRadar", () => {
     expect(stats.burnGaps).toBe(1);
     expect(stats.mismatch).toBe(0);
   });
+
+  it("keeps a Diamond off radar when z500 credits the project burns", () => {
+    const rows = paidRadar([
+      project({
+        name: "EYE",
+        mint: "eye",
+        tier: "Diamond",
+        verifiedBurn: 0,
+        verifyExhausted: true,
+        listedBurn: DIAMOND_BURN,
+      }),
+    ]);
+    expect(rows).toEqual([]);
+  });
 });
