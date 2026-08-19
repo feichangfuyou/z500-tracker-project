@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bannerUrlFrom, creditedBurn, enhancedAtFrom, isEnhanced, mapAnsemMarket, mapDexPair, mapPumpCoin, projectBurnsByMint } from "./ansem";
+import { bannerUrlFrom, creditedBurn, enhancedAtFrom, isEnhanced, listedAirdropCaption, mapAnsemMarket, mapAnsemStats, mapDexPair, mapPumpCoin, mergeProjectBurns, projectBurnsByMint, resolveListedCoins } from "./ansem";
 
 describe("mapPumpCoin", () => {
   it("maps a pump.fun coin into the discovery shape", () => {
@@ -42,6 +42,82 @@ describe("mapPumpCoin", () => {
 
   it("drops coins without a mint", () => {
     expect(mapPumpCoin({ name: "nope" })).toBeNull();
+  });
+});
+
+describe("mapAnsemStats", () => {
+  it("reads token count, ATH usd, and wallets from /api/stats", () => {
+    expect(
+      mapAnsemStats({
+        airdropped: {
+          tokens: 2_325_003_984.2873874,
+          claimedTokens: 33_187_461.818,
+          usd: 615_679.577,
+          usdNow: 121_311.925,
+          pricedShare: 1,
+          coins: 43,
+          wallets: 29_413,
+        },
+        holders: { count: 146_000 },
+        burned: { total: 1_493_480.779595 },
+      }),
+    ).toEqual({
+      airdroppedTokens: 2_325_003_984.2873874,
+      airdroppedUsd: 615_679.577,
+      airdroppedUsdNow: 121_311.925,
+      airdroppedCoins: 43,
+      airdroppedWallets: 29_413,
+      airdroppedPricedShare: 1,
+      claimedTokens: 33_187_461.818,
+      burnedAnsem: 1_493_480.779595,
+      holders: 146_000,
+    });
+  });
+
+  it("returns nulls when the payload is empty", () => {
+    expect(mapAnsemStats(null)).toEqual({
+      airdroppedTokens: null,
+      airdroppedUsd: null,
+      airdroppedUsdNow: null,
+      airdroppedCoins: null,
+      airdroppedWallets: null,
+      airdroppedPricedShare: null,
+      claimedTokens: null,
+      burnedAnsem: null,
+      holders: null,
+    });
+  });
+});
+
+describe("listedAirdropCaption", () => {
+  it("matches ansem.io: ATH dollars, coin count, wallets", () => {
+    expect(
+      listedAirdropCaption({
+        airdroppedTokens: 2_325_003_984.2873874,
+        airdroppedUsd: 615_679.577,
+        airdroppedCoins: 43,
+        airdroppedWallets: 29_413,
+        airdroppedPricedShare: 1,
+      }),
+    ).toBe("≈ $615.7K · 43 coins · 29.4K wallets");
+  });
+
+  it("marks a partial priced share with a plus", () => {
+    expect(
+      listedAirdropCaption({
+        airdroppedTokens: 1_000,
+        airdroppedUsd: 10,
+        airdroppedCoins: 1,
+        airdroppedWallets: 12,
+        airdroppedPricedShare: 0.5,
+      }),
+    ).toBe("≈ $10.00+ · 1 coin · 12 wallets");
+  });
+
+  it("falls back when nothing has been distributed", () => {
+    expect(listedAirdropCaption({ airdroppedTokens: 0, airdroppedUsd: null, airdroppedCoins: null, airdroppedWallets: null, airdroppedPricedShare: null })).toBe(
+      "Distributed at migration",
+    );
   });
 });
 
@@ -112,6 +188,43 @@ describe("projectBurnsByMint", () => {
         { amount: 1 },
       ]),
     ).toEqual({ eye: { amount: 370_566, burners: 8 } });
+  });
+});
+
+describe("resolveListedCoins", () => {
+  const alpha = { mint: "MintA", name: "Alpha", ticker: "A", slug: "a", tier: "free" };
+
+  it("keeps a live ansem.io list", () => {
+    expect(resolveListedCoins([alpha], { coins: [], at: 0 }, 50)).toEqual({
+      coins: [alpha],
+      source: "ansem",
+      listedAt: 50,
+    });
+  });
+
+  it("falls back to the saved snapshot when live is empty or missing", () => {
+    expect(resolveListedCoins([], { coins: [alpha], at: 9 }, 50)).toEqual({
+      coins: [alpha],
+      source: "cache",
+      listedAt: 9,
+    });
+    expect(resolveListedCoins(null, { coins: [alpha], at: 9 }, 50).source).toBe("cache");
+  });
+
+  it("stays empty when there is no snapshot either", () => {
+    expect(resolveListedCoins([], { coins: [], at: 0 }, 50)).toEqual({
+      coins: [],
+      source: "empty",
+      listedAt: null,
+    });
+  });
+});
+
+describe("mergeProjectBurns", () => {
+  it("keeps the last good snapshot when live is empty", () => {
+    const cached = { eye: { amount: 370_566, burners: 8 } };
+    expect(mergeProjectBurns({}, cached)).toEqual(cached);
+    expect(mergeProjectBurns({ z: { amount: 1, burners: 1 } }, cached)).toEqual({ z: { amount: 1, burners: 1 } });
   });
 });
 

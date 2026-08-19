@@ -1,4 +1,6 @@
-import type { Flag, IndexCoin, IndexDay, Project } from "./types";
+import { isIndexMint, type Flag, type IndexCoin, type IndexDay, type Project } from "./types";
+
+export type { IndexDay };
 
 export const INDEX_SIZE = 25;
 export const INDEX_KEEP = 30;
@@ -47,7 +49,7 @@ export function indexInputFromProject(p: Project): IndexInput {
 }
 
 export function indexFromProjects(projects: Project[], at = Date.now()): IndexDay {
-  return buildIndexDay(projects.map(indexInputFromProject), at);
+  return buildIndexDay(projects.filter((p) => !isIndexMint(p.mint)).map(indexInputFromProject), at);
 }
 
 export function overlayLiveIndex(snapshot: IndexDay, live: IndexDay | null): IndexDay {
@@ -96,4 +98,19 @@ export function buildIndexDay(projects: IndexInput[], at = Date.now()): IndexDay
 export function pushIndexDay(days: IndexDay[], next: IndexDay, keep = INDEX_KEEP) {
   const without = days.filter((d) => d.at !== next.at);
   return [next, ...without].sort((a, b) => b.at - a.at).slice(0, keep);
+}
+
+export function previousIndexDay(days: IndexDay[] | undefined, at = Date.now()) {
+  const start = utcDayStart(at);
+  return (days || []).find((d) => d.at < start) || null;
+}
+
+/** Positive = climbed vs yesterday's Crosscheck top 25. */
+export function dayRankDelta(currentRank: number, yesterday: IndexDay | null | undefined, mint: string) {
+  if (!yesterday?.coins.length || !(currentRank > 0)) return 0;
+  const prev = yesterday.coins.findIndex((c) => c.mint === mint);
+  if (prev < 0) {
+    return currentRank <= INDEX_SIZE ? INDEX_SIZE + 1 - currentRank : 0;
+  }
+  return prev + 1 - currentRank;
 }

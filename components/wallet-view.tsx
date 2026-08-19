@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 import { CoinThumb } from "@/components/coin-thumb";
 import { CopyAddr } from "@/components/copy-addr";
 import { FlagChips } from "@/components/flag-chips";
-import { LiveNum, LiveShift, type LiveNumFormatName } from "@/components/live-num";
+import { LiveNum, type LiveNumFormatName } from "@/components/live-num";
 import { MiniStat, MiniStatGrid, changeClass } from "@/components/mini-stat";
 import { PageBack } from "@/components/page-back";
 import { ScrambleText } from "@/components/scramble-text";
@@ -24,6 +24,7 @@ import { findWallet, serialLabel, walletAirdropUsd, walletBestOfficial, type Wal
 export function WalletView({ initial }: { initial: WalletPayload }) {
   const [row, setRow] = useState<WalletRow>(initial.row);
   const [tape, setTape] = useState(initial.tape);
+  const flags = initial.flags;
   const onBoard = useCallback(
     (board: BoardResponse) => {
       const next = findWallet(board.projects, initial.row.wallet);
@@ -110,6 +111,36 @@ export function WalletView({ initial }: { initial: WalletPayload }) {
           </div>
         </section>
 
+        {flags.length > 0 ? (
+          <section className="mt-8 border-t border-border pt-6">
+            <h2 className="type-eyebrow">Flags issued</h2>
+            <p className="mt-3 text-pretty text-sm text-muted">
+              Timestamped when this wallet crossed 5 or 8 launches. After 14 days we close the row as held or
+              confirmed rug when liquidity is known.
+            </p>
+            <ol className="mt-4 divide-y divide-border border-t border-border">
+              {flags.map((flag) => (
+                <li key={flag.id} className="flex flex-wrap items-baseline justify-between gap-3 py-3">
+                  <p className="min-w-0 text-sm text-ink">
+                    <Link href={`/c/${flag.mint}`} className="hover:text-gold-lit">
+                      <ScrambleText text={flag.ticker ? `$${flag.ticker}` : flag.name} />
+                    </Link>
+                    <span className="text-muted">
+                      {" "}
+                      · launch #{flag.launchCount}
+                      {flag.threshold === 8 ? " · serial bad" : " · serial"}
+                    </span>
+                  </p>
+                  <p className="shrink-0 font-mono text-[11px] tabular-nums text-dim">
+                    <TimeAgo at={flag.issuedAt} />
+                    <span> · {flag.outcome ? flag.outcome.replace(/_/g, " ") : "open"}</span>
+                  </p>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
+
         <section className="mt-8 border-t border-border pt-6">
           <h2 className="type-eyebrow">Launches</h2>
           <ol className="mt-4 divide-y divide-border border-t border-border">
@@ -157,7 +188,7 @@ export function WalletView({ initial }: { initial: WalletPayload }) {
                       v={<LiveNum value={c.change24h} format="pct" flash={false} />}
                       className={changeClass(c.change24h)}
                     />
-                    <MiniStat k="Score" v={<LiveNum value={c.score} format="usd" />} />
+                    <MiniStat k="Score" v={<LiveNum value={c.score} format="compact" />} />
                     <MiniStat k="Listed" v={<OfficialRank coin={c} />} />
                     <MiniStat k="Burned" v={<LiveNum value={c.burned} format="compact" />} />
                   </MiniStatGrid>
@@ -197,14 +228,5 @@ function Stat({
 
 function OfficialRank({ coin }: { coin: WalletCoin }) {
   if (coin.officialRank == null) return "—";
-  return (
-    <>
-      <LiveNum value={coin.officialRank} format="rank" flash={false} />
-      {coin.officialDelta != null && coin.officialDelta !== 0 ? (
-        <span className="ml-1">
-          <LiveShift value={coin.officialDelta} />
-        </span>
-      ) : null}
-    </>
-  );
+  return <LiveNum value={coin.officialRank} format="rank" flash={false} />;
 }

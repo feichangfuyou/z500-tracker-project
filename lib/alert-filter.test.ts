@@ -31,5 +31,14 @@ describe("tapeForAlerts", () => {
     const events = [burn("watch1"), burn("gold1"), burn("free1")];
     expect(tapeForAlerts(events, ctx).map((e) => e.mint)).toEqual(["watch1", "gold1"]);
     expect(tapeForAlerts(events, ctx, "all")).toHaveLength(3);
+    const flag: TapeEvent = {
+      id: "flag:serial:w:5",
+      kind: "flag",
+      at: 1,
+      mint: "free1",
+      name: "free1",
+      label: "5th launch",
+    };
+    expect(tapeForAlerts([flag], ctx).map((e) => e.mint)).toEqual(["free1"]);
   });
 });

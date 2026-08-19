@@ -69,6 +69,6 @@ export async function resolveProvenance(mint: string, launchWallet: string | nul
     sources: { pump: pumpWallet, onchain },
     createSig: onchain ? window?.signature ?? null : null,
     createSlot: onchain ? window?.slot ?? null : null,
-    bundle: window?.bundle ?? { sameBlockBuys: 0, sameBlockWallets: 0, sniper: false },
+    bundle: window?.bundle ?? { sameBlockBuys: 0, sameBlockWallets: 0, sameBlockBuyers: [], sniper: false },
   };
 }

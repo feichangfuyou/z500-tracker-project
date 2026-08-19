@@ -47,6 +47,7 @@ export function tapeForAlerts(
 ) {
   if (filter === "all") return events;
   return events.filter((event) => {
+    if (event.kind === "flag") return true;
     if (ctx.watchMints.has(event.mint)) return true;
     if (ctx.paidMints.has(event.mint)) return true;
     return false;

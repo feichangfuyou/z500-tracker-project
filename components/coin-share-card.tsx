@@ -23,15 +23,15 @@ export function CoinShareCard({ project, dossier }: { project: Project; dossier:
       </p>
       <dl className="mt-4 grid grid-cols-2 gap-3 font-mono text-sm tabular-nums">
         <div>
-          <dt className="type-eyebrow">Score</dt>
-          <dd className="text-ink">
-            <LiveNum value={p.score} format={fmtUsd} reel />
-          </dd>
-        </div>
-        <div>
           <dt className="type-eyebrow">Listed</dt>
           <dd className="text-ink">
             <LiveNum value={p.officialRank} format={fmtRank} reel />
+          </dd>
+        </div>
+        <div>
+          <dt className="type-eyebrow">Score</dt>
+          <dd className="text-ink">
+            <LiveNum value={p.score} format={fmtCompact} reel />
           </dd>
         </div>
         <div>

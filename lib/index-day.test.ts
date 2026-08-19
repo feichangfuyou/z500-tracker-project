@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildIndexDay, overlayLiveIndex, pushIndexDay, utcDayLabel, utcDayStart } from "./index-day";
+import { buildIndexDay, dayRankDelta, overlayLiveIndex, previousIndexDay, pushIndexDay, utcDayLabel, utcDayStart } from "./index-day";
 
 describe("daily index", () => {
   it("keeps the top 25 by score and replaces the same UTC day", () => {
@@ -102,5 +102,18 @@ describe("daily index", () => {
       Date.parse("2026-08-18T15:00:00Z"),
     );
     expect(overlayLiveIndex(snap, live).coins[0]?.change24h).toBeUndefined();
+  });
+
+  it("measures rank change against yesterday's basket", () => {
+    const yesterday = buildIndexDay(
+      [
+        { mint: "a", name: "A", score: 9, officialRank: 1, airdropMcap: 1, burned: 0 },
+        { mint: "b", name: "B", score: 8, officialRank: 2, airdropMcap: 1, burned: 0 },
+      ],
+      Date.parse("2026-08-18T15:00:00Z"),
+    );
+    expect(dayRankDelta(1, yesterday, "b")).toBe(1);
+    expect(dayRankDelta(8, yesterday, "a")).toBe(-7);
+    expect(previousIndexDay([yesterday], Date.parse("2026-08-19T12:00:00Z"))?.at).toBe(yesterday.at);
   });
 });

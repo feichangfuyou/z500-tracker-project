@@ -6,7 +6,7 @@ import { RadarList } from "@/components/radar-list";
 import { ScrambleText } from "@/components/scramble-text";
 import { SiteHeader } from "@/components/site-header";
 import { buildBoard } from "@/lib/board";
-import { ANSEM_Z500 } from "@/lib/links";
+import { ANSEM_ORIGIN } from "@/lib/links";
 import { paidRadar, radarStats } from "@/lib/paid-radar";
 
 export const revalidate = 20;
@@ -45,25 +45,35 @@ export default async function RadarPage() {
             </p>
             <h1 className="display display-title mt-2 text-balance text-ink">Paid-tier radar</h1>
             <p className="mt-2 text-pretty text-sm text-muted sm:hidden">
-              Gold or Diamond with a burn gap, listed ≠ create, serial, or bundle.{" "}
-              <Link href="/guide" className="text-ink hover:text-gold-lit">
-                <ScrambleText text="How to read this site" />
+              Gold or Diamond with a burn gap, listed ≠ create, serial, or bundle — pulled off our Z500.{" "}
+              <Link href="/z500" className="text-ink hover:text-gold-lit">
+                <ScrambleText text="Open Z500" />
               </Link>
               .
             </p>
             <p className="mt-2 hidden max-w-[36rem] text-pretty text-sm text-muted sm:block">
-              Only listings that can stain z500 this week: Gold or Diamond with a burn short of the documented floor, a
-              listed wallet that is not the mint-create wallet, a serial deployer, or a create-slot bundle. Clean paid
-              tiers stay off this page. Launch, claim, boost, and burn stay on{" "}
-              <a href={ANSEM_Z500} target="_blank" rel="noopener noreferrer" className="text-ink hover:text-gold-lit">
+              A filter on our Z500, not the index itself. Only Gold or Diamond that can stain the list this week: burn
+              short of the documented floor, listed wallet ≠ mint-create wallet, serial deployer, or create-slot bundle.
+              Clean paid tiers stay off this page. Launch, claim, boost, and burn stay on{" "}
+              <a href={ANSEM_ORIGIN} target="_blank" rel="noopener noreferrer" className="text-ink hover:text-gold-lit">
                 <ScrambleText text="ansem.io" />
               </a>
-              .{" "}
-              <Link href="/guide" className="text-ink hover:text-gold-lit">
-                <ScrambleText text="How to read this site" />
-              </Link>
               .
             </p>
+            <div className="mt-4 hidden flex-wrap gap-2 sm:flex">
+              <Link
+                href="/z500"
+                className="type-btn inline-flex h-8 items-center border border-accent bg-accent px-3 font-semibold text-void hover:border-accent-hover hover:bg-accent-hover"
+              >
+                <ScrambleText text="Open Z500" />
+              </Link>
+              <Link
+                href="/guide"
+                className="type-btn inline-flex h-8 items-center border border-border px-3 text-muted hover:text-ink"
+              >
+                <ScrambleText text="How to read this" />
+              </Link>
+            </div>
           </div>
         </section>
         <RadarList initial={rows} stats={stats} />

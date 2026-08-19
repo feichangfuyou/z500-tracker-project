@@ -1,5 +1,7 @@
+import { burnCoverage } from "./coverage";
 import { INSIDER_BAD, INSIDER_WARN } from "./radar";
 import { publicBurn } from "./score";
+import { isIndexMint } from "./types";
 import type { Flag, Project, ProvenanceStatus } from "./types";
 import { serialLabel, serialSeverity } from "./wallets";
 
@@ -23,6 +25,7 @@ export const CLUSTER_MS = 30 * 60 * 1000;
 
 type FlagInput = Pick<
   Project,
+  | "mint"
   | "walletProvenance"
   | "holderTop10Pct"
   | "insiderPct"
@@ -32,12 +35,14 @@ type FlagInput = Pick<
   | "tier"
   | "verifiedBurn"
   | "listedBurn"
+  | "listedBurners"
   | "burnAmount"
   | "addedAt"
   | "launchCount"
 >;
 
 export function projectFlags(p: FlagInput, now = Date.now()): Flag[] {
+  if (isIndexMint(p.mint)) return [];
   const flags: Flag[] = [];
 
   if (p.sniper) {
@@ -75,10 +80,23 @@ export function projectFlags(p: FlagInput, now = Date.now()): Flag[] {
   }
 
   const paidTier = p.tier === "Gold" || p.tier === "Diamond";
-  const burned = publicBurn(p);
-  if (paidTier && p.verifiedBurn == null && p.listedBurn == null) {
+  const coverage = burnCoverage(p);
+  if (coverage.status === "unchecked" && paidTier) {
     flags.push({ id: "unverified", label: "Burns unchecked", severity: "warn" });
-  } else if (paidTier && burned === 0) {
+  } else if (coverage.status === "unlabeled") {
+    const burners = coverage.burners;
+    flags.push({
+      id: "unverified",
+      label: burners && burners > 1 ? `${burners} unlabeled burners` : "Unlabeled burners",
+      severity: "warn",
+    });
+  } else if (coverage.status === "partial" && coverage.pct != null) {
+    flags.push({
+      id: "unverified",
+      label: `Burn coverage ${(coverage.pct * 100).toFixed(0)}%`,
+      severity: "warn",
+    });
+  } else if (paidTier && coverage.status === "none") {
     flags.push({ id: "unverified", label: "No verified burn", severity: "warn" });
   }
 

@@ -31,13 +31,16 @@ import { ScrambleText } from "@/components/scramble-text";
 import { SiteHeader } from "@/components/site-header";
 import { StatIcon, type StatIconName } from "@/components/stat-icon";
 import { TapeStrip } from "@/components/tape-strip";
-import { TimeAgo } from "@/components/time-ago";
+import { JustFlagged } from "@/components/just-flagged";
+import { LiveAge, TimeAgo } from "@/components/time-ago";
 import { TradeLinks } from "@/components/trade-links";
 import { closedTabHint } from "@/lib/notify";
 import { loadLocalWatches, loadWatchWallet, pullWatches, pushWatches, saveLocalWatches, saveWatchWallet } from "@/components/watch-sync";
 import { applyBurnValue, burnAnnounce, burnIncreases, snapshotBurns, type BurnHit } from "@/lib/burn-fx";
 import { cn } from "@/lib/cn";
-import { fmtCompact, fmtInt, fmtNum, fmtPct, fmtPrice, fmtRank, fmtUsd, shortAddr } from "@/lib/format";
+import { fmtDrop, fmtHead, fmtCompact, fmtInt, fmtNum, fmtPct, fmtUsd, indexStatusLabel, shortAddr } from "@/lib/format";
+import { listedAirdropCaption } from "@/lib/ansem-stats";
+import { isIndexMint, TIERS, type BoardResponse, type Project } from "@/lib/types";
 import {
   getHeaderChrome,
   getHeaderChromeServer,
@@ -46,9 +49,8 @@ import {
   subscribeHeaderChrome,
 } from "@/lib/header-chrome";
 import { isValidAddress } from "@/lib/guardrails";
-import { computeScore, publicBurn } from "@/lib/score";
+import { burnSource, burnSourceLabel, computeScore, publicBurn } from "@/lib/score";
 import { projectFlags } from "@/lib/flags";
-import { TIERS, type BoardResponse, type Project } from "@/lib/types";
 
 const PAGE = 20;
 const POLL_MS = 30_000;
@@ -85,9 +87,9 @@ function paginationItems(current: number, total: number): Array<number | "gap"> 
   return items;
 }
 
-type SortKey = "listed" | "score" | "mcap" | "change" | "burn" | "airdrop" | "boost" | "delta";
+type SortKey = "listed" | "score" | "mcap" | "change" | "burn" | "airdrop" | "boost" | "delta" | "volume";
 type BoardView = "grid" | "table";
-type FeedFilter = "all" | "on_curve" | "migrated" | "Free" | "Bronze" | "Gold" | "Diamond" | "boosted" | "watching" | "flagged";
+type FeedFilter = "all" | "on_curve" | "migrated" | "Free" | "Bronze" | "Gold" | "Diamond" | "boosted" | "watching" | "flagged" | "nsfw";
 
 const VIEW_KEY = "crosscheck_board_view";
 
@@ -108,6 +110,7 @@ const FEEDS: { id: FeedFilter; label: string }[] = [
   { id: "Bronze", label: "Bronze" },
   { id: "Gold", label: "Gold" },
   { id: "Diamond", label: "Diamond" },
+  { id: "nsfw", label: "NSFW" },
   { id: "boosted", label: "Boosted" },
   { id: "flagged", label: "Flagged" },
   { id: "watching", label: "Watching" },
@@ -150,7 +153,7 @@ function loadWatched(): string[] {
   return loadLocalWatches();
 }
 
-export function Tracker({ initial }: { initial: BoardResponse }) {
+export function Tracker({ initial, variant = "board" }: { initial: BoardResponse; variant?: "board" | "index" }) {
   const [board, setBoard] = useState(initial);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -167,7 +170,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
   const [checkingHolders, setCheckingHolders] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Project | null>(null);
   const [openMint, setOpenMint] = useState<string | null>(null);
-  const [view, setView] = useState<BoardView>("grid");
+  const [view, setView] = useState<BoardView>(variant === "index" ? "table" : "grid");
   const [formError, setFormError] = useState<string | null>(null);
   const [burnFx, setBurnFx] = useState<{ at: number; label: string } | null>(null);
   const [form, setForm] = useState({
@@ -187,11 +190,9 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
     }
   }
   if (Object.keys(prevRanks.current).length === 0) {
-    [...initial.projects]
-      .sort((a, b) => b.score - a.score)
-      .forEach((p, i) => {
-        prevRanks.current[p.id] = i;
-      });
+    for (const p of initial.projects) {
+      if (p.officialRank != null) prevRanks.current[p.id] = p.officialRank;
+    }
   }
   const dialogRef = useRef<HTMLDialogElement>(null);
   const addRef = useRef<HTMLDivElement>(null);
@@ -199,7 +200,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    setView(loadBoardView());
+    if (variant !== "index") setView(loadBoardView());
     setWatched(loadWatched());
     setWatchWallet(loadWatchWallet());
     fetch("/api/session")
@@ -259,16 +260,17 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
   const stopBurn = useCallback(() => setBurnFx(null), []);
 
   const applyDeltas = useCallback((incoming: BoardResponse) => {
-    const ranked = [...incoming.projects].sort((a, b) => b.score - a.score);
     const nextRanks: Record<string, number> = {};
-    ranked.forEach((p, i) => {
-      nextRanks[p.id] = i;
-    });
+    for (const p of incoming.projects) {
+      if (p.officialRank != null) nextRanks[p.id] = p.officialRank;
+    }
     const withDeltas = incoming.projects.map((p) => ({
       ...p,
       imageUrl: p.imageUrl || prevImages.current[p.mint] || null,
       rankDelta:
-        prevRanks.current[p.id] !== undefined ? prevRanks.current[p.id] - (nextRanks[p.id] ?? 0) : 0,
+        p.officialRank != null && prevRanks.current[p.id] != null
+          ? prevRanks.current[p.id] - p.officialRank
+          : 0,
     }));
     const moved = withDeltas.filter(
       (p) => watched.includes(p.mint) && p.rankDelta !== 0 && prevRanks.current[p.id] !== undefined,
@@ -286,6 +288,8 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
     prevTape.current = new Set(tape.map((e) => e.id));
     if (alertsOn && "Notification" in window && Notification.permission === "granted") {
       const notice =
+        freshTape.find((e) => e.kind === "flag") ||
+        freshTape.find((e) => e.kind === "rank") ||
         freshTape.find((e) => e.kind === "launch") ||
         freshTape.find((e) => e.kind === "boost") ||
         freshTape.find((e) => watched.includes(e.mint)) ||
@@ -295,7 +299,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
       } else if (moved.length) {
         const first = moved[0];
         new Notification("Crosscheck", {
-          body: `${first.name} moved ${first.rankDelta > 0 ? "up" : "down"} ${Math.abs(first.rankDelta)}`,
+          body: `${first.name} listed ${first.rankDelta > 0 ? "up" : "down"} ${Math.abs(first.rankDelta)}`,
         });
       }
     }
@@ -348,6 +352,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = board.projects.filter((p) => {
+      if (feed === "nsfw" && !p.nsfw) return false;
       if (feed === "watching" && !watched.includes(p.mint)) return false;
       if (feed === "flagged" && !(p.flags || []).length) return false;
       if (feed === "on_curve" && (p.status || "") !== "on_curve") return false;
@@ -375,16 +380,20 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
           bv = b.score;
           break;
         case "mcap":
-          av = a.live?.marketCap || 0;
-          bv = b.live?.marketCap || 0;
+          av = a.listedMarketCap || a.live?.marketCap || 0;
+          bv = b.listedMarketCap || b.live?.marketCap || 0;
           break;
         case "airdrop":
-          av = a.live?.airdropMcap || 0;
-          bv = b.live?.airdropMcap || 0;
+          av = a.airdropTotal || 0;
+          bv = b.airdropTotal || 0;
+          break;
+        case "volume":
+          av = a.listedVolume24h || a.live?.volume24h || 0;
+          bv = b.listedVolume24h || b.live?.volume24h || 0;
           break;
         case "change":
-          av = a.live?.change24h || 0;
-          bv = b.live?.change24h || 0;
+          av = a.listedChange24h ?? a.live?.change24h ?? 0;
+          bv = b.listedChange24h ?? b.live?.change24h ?? 0;
           break;
         case "burn":
           av = publicBurn(a);
@@ -436,6 +445,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
 
   const setBoardView = (next: BoardView) => {
     setView(next);
+    if (variant === "index") return;
     try {
       localStorage.setItem(VIEW_KEY, next);
     } catch {
@@ -671,22 +681,30 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
             <BurnVideo playId={burnFx?.at ?? 0} active={!!burnFx} onEnded={stopBurn} />
           </div>
           <div className="hero-banner__copy max-w-[620px] px-5 py-3 sm:py-5 lg:px-8 lg:py-7">
-            <p className="type-eyebrow">Unofficial · not ansem.io</p>
+            <p className="type-eyebrow">{variant === "index" ? "Z500 · unofficial index" : "Unofficial · not ansem.io"}</p>
             <h1 className="display display-scan display-title mt-2 text-balance text-ink sm:mt-3">
-              What’s launching
-              <span className="hidden min-[400px]:inline"> on ansem.io</span>
+              {variant === "index" ? (
+                "Z500"
+              ) : (
+                <>
+                  What’s launching
+                  <span className="hidden min-[400px]:inline"> on ansem.io</span>
+                </>
+              )}
             </h1>
             <p className="mt-2 text-pretty text-sm text-muted sm:hidden">
-              Unofficial tracker of ansem.io launches — prices, burns, and flags.{" "}
+              {variant === "index"
+                ? "Live z500 board: circulating mcap, $ANSEM at #1, NSFW included. Same list as ansem.io, with burns and flags on top."
+                : "Unofficial tracker of ansem.io launches — prices, burns, and flags."}{" "}
               <Link href="/guide" className="text-ink hover:text-gold-lit">
                 <ScrambleText text="How to read this" />
               </Link>
               .
             </p>
             <p className="mt-5 hidden max-w-[472px] text-pretty text-sm text-muted sm:block">
-              ansem.io is a Solana site where people launch new coins. Crosscheck is our unofficial tracker of those
-              same coins — prices, whether $ANSEM burns actually happened, and flags when something looks off. Not the
-              official z500, and not built by ansem.io.
+              {variant === "index"
+                ? "Same order as ansem.io’s z500: circulating market cap, $ANSEM as #1, every launch including NSFW. Crosscheck adds verified burns, flags, and our score on the same rows."
+                : "ansem.io is a Solana site where people launch new coins. Crosscheck is our unofficial tracker of those same coins — prices, whether $ANSEM burns actually happened, and flags when something looks off. Not the official z500, and not built by ansem.io."}
             </p>
             <div className="mt-4 flex w-full flex-col min-[400px]:max-w-[472px] min-[400px]:flex-row sm:mt-6">
               <Link
@@ -716,8 +734,8 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
           <div>
             <p className="type-eyebrow">2. This board</p>
             <p className="mt-2 text-pretty text-sm text-muted">
-              The table below is our live list. Listed # is z500’s default: circulating mcap. Score
-              is our independent rank — airdrop value + verified burns + boosts.
+              Same table as ansem.io’s z500: circulating mcap, $ANSEM at #1, NSFW on the list. Score is our extra —
+              airdrop + verified burns + boosts.
             </p>
           </div>
           <div>
@@ -733,30 +751,26 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
         </section>
 
         <div className="mt-8 grid grid-cols-1 gap-6 border-t border-border pt-6 min-[480px]:grid-cols-2 min-[480px]:gap-x-8 lg:grid-cols-4">
-          <Stat icon="rocket" k="Coins listed" value={board.stats.coins} format={fmtInt} c="Every launch we can see" />
-          <Stat icon="gift" k="Airdropped" value={board.stats.airdroppedUsd} format={fmtUsd} c="Value sent to holders" />
+          <Stat
+            icon="rocket"
+            k="Projects launched"
+            value={board.stats.launched ?? board.stats.coins}
+            format={fmtInt}
+            c="All time, across every tier"
+          />
+          <Stat
+            icon="gift"
+            k="Airdropped to holders"
+            value={board.stats.airdroppedTokens}
+            format={fmtHead}
+            c={listedAirdropCaption(board.stats)}
+          />
           <Stat
             icon="flame"
             k="$ANSEM burned"
             value={board.stats.burnedAnsem}
-            format={fmtCompact}
-            c={
-              <>
-                Listed on ansem.io
-                {board.stats.verifiedBurned > 0 ? (
-                  <>
-                    {" "}
-                    · on-chain <LiveNum value={board.stats.verifiedBurned} format="compact" flash={false} />
-                  </>
-                ) : null}
-                {board.stats.paidPending > 0 ? (
-                  <>
-                    {" "}
-                    · {board.stats.paidPending} paid still scanning
-                  </>
-                ) : null}
-              </>
-            }
+            format={fmtInt}
+            c="Published by ansem.io — every burner. Coin rows use the amount z500 credits to that coin."
           />
           <Stat
             icon="bolt"
@@ -790,6 +804,32 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
           </div>
           <MiniStatGrid>
             <MiniStat
+              k="Vs ansem.io"
+              v={
+                board.stats.burnVerifiedPct == null ? (
+                  "—"
+                ) : (
+                  <LiveNum
+                    value={board.stats.burnVerifiedPct * 100}
+                    format={(n) => (n == null ? "—" : `${Math.round(n)}%`)}
+                    flash={false}
+                  />
+                )
+              }
+              hint="Share of $ANSEM ansem.io credits that we independently assigned to the same coins. The Burned column is always ansem.io. This row is the on-chain check."
+            />
+            <MiniStat
+              k="Coins match"
+              v={
+                <>
+                  <LiveNum value={board.stats.ansemCoinsMatched} format="int" flash={false} />
+                  {" / "}
+                  <LiveNum value={board.stats.ansemCoinsCredited} format="int" flash={false} />
+                </>
+              }
+              hint="Coins where our independently assigned $ANSEM is within 5% of what ansem.io credits"
+            />
+            <MiniStat
               k="Paid indexed"
               v={
                 <>
@@ -808,7 +848,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
             <MiniStat
               k="Still scanning"
               v={<LiveNum value={board.stats.paidPending} format="int" flash={false} />}
-              hint="Paid wallets with no index yet"
+              hint="Gold and Diamond wallets not scanned to the end of history"
             />
             <MiniStat
               k="Wallets"
@@ -816,9 +856,33 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
               hint="Launch wallets with at least one burn pass"
             />
             <MiniStat
+              k="Mint index"
+              v={
+                board.stats.mintTxChecked > 0 ? (
+                  <>
+                    <LiveNum value={board.stats.mintTxChecked} format="int" flash={false} />
+                    {board.stats.mintExhausted ? " · done" : " · scanning"}
+                  </>
+                ) : (
+                  "—"
+                )
+              }
+              hint="Every $ANSEM burn we pulled from the mint itself, not only listed launch wallets. Live webhook covers new burns once this history is done."
+            />
+            <MiniStat
+              k="Unlabeled"
+              v={<LiveNum value={board.stats.unlabeledHits} format="int" flash={false} />}
+              hint="Live $ANSEM burns we still cannot assign to a coin — the tx did not name one, and the amount was not a unique gap vs ansem.io"
+            />
+            <MiniStat
               k="On-chain"
               v={<LiveNum value={board.stats.verifiedBurned} format="compact" flash={false} />}
-              hint="Verified $ANSEM burned across indexed wallets"
+              hint="On-chain $ANSEM we assigned to these coins (launch wallets plus labeled stranger burns). Not the ansem.io published total."
+            />
+            <MiniStat
+              k="Boosted"
+              v={<LiveNum value={board.stats.boosted} format="int" flash={false} />}
+              hint="Coins with an active ansem.io boost"
             />
             <MiniStat
               k="Last scan"
@@ -826,6 +890,8 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
             />
           </MiniStatGrid>
         </section>
+
+        <JustFlagged events={board.tape || []} />
 
         <section className="mt-6 flex min-h-[var(--ticker-h)] min-w-0 items-center overflow-hidden border-y border-border">
           <h2 className="type-eyebrow flex h-full shrink-0 items-center pr-2 leading-none sm:pr-3">Tape</h2>
@@ -840,8 +906,23 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
         </Reveal>
         <Reveal show={board.feedSource !== "ansem"}>
           <div className="mt-6 border border-border bg-panel px-4 py-3 text-sm text-muted">
-            Could not load the live ansem.io list. Showing {FEED_COPY[board.feedSource]}. These rows are not ranked as
-            listed ansem.io launches.
+            {board.feedSource === "cache" ? (
+              <>
+                Live ansem.io is unreachable. Showing the last saved list
+                {board.stats.listedAt ? (
+                  <>
+                    {" "}
+                    from <TimeAgo at={board.stats.listedAt} />
+                  </>
+                ) : null}
+                . Listed ranks are from that snapshot.
+              </>
+            ) : (
+              <>
+                Live ansem.io is unreachable and we have no saved list. Showing {FEED_COPY[board.feedSource]}. These
+                rows are not listed ansem.io ranks.
+              </>
+            )}
           </div>
         </Reveal>
 
@@ -956,7 +1037,11 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                 </button>
             </div>
           </div>
-          <Reveal show={feed === "watching"} className="mt-3 flex min-w-0 items-center">
+          <Reveal show={feed === "watching"} className="mt-3 flex min-w-0 flex-col gap-2">
+            <p className="text-pretty text-sm text-muted">
+              Star a coin to arm closed-tab alerts for serial flags and rank moves. Sync across browsers with a wallet
+              key if you want.
+            </p>
             <form
               className="flex min-w-0 flex-1 items-center gap-2"
               onSubmit={(e) => {
@@ -1079,11 +1164,9 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
           <>
             {view === "grid" && (
               <p className="mt-4 text-pretty text-xs text-dim">
-                <span className="text-muted">Board</span> is our rank.{" "}
-                <span className="text-muted">Listed</span> is ansem.io order.{" "}
-                <span className="text-muted">Airdrop</span> is value sent to $ANSEM holders.{" "}
-                <span className="text-muted">Listed</span> is z500 mcap.{" "}
-                <span className="text-muted">Score</span> is airdrop + burns + boosts.
+                <span className="text-muted">Listed</span> is z500 circulating mcap ($ANSEM #1).{" "}
+                <span className="text-muted">Score</span> is our proxy — airdrop + burns + boosts, not dollars and not
+                z500. Arrows on Listed are listed-rank moves, not Score.
               </p>
             )}
             <div
@@ -1111,8 +1194,9 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                             <span className="block truncate text-base font-medium text-ink">
                               <ScrambleText text={p.name} />
                             </span>
-                            <span className="mt-0.5 block truncate font-mono text-[11px] text-dim">
+                            <span className="mt-0.5 flex items-center gap-1.5 truncate font-mono text-[11px] text-dim">
                               {p.ticker ? `$${p.ticker}` : shortAddr(p.mint)}
+                              {isIndexMint(p.mint) ? <IndexBadge /> : null}
                             </span>
                           </Link>
                           <CopyAddr value={p.mint} label="mint address" />
@@ -1123,17 +1207,14 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                         </span>
                       </div>
                       <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] tabular-nums text-muted">
-                        <span title="This board's rank. Score adds verified $ANSEM burns.">
-                          <span className="type-th">Board</span>{" "}
-                          <span className="text-ink">
-                            <LiveNum value={rankStart + i + 1} format="rank" flash={false} />
-                            {p.rankDelta !== 0 && (
-                              <span className="ml-1">
-                                <LiveShift value={p.rankDelta} />
-                              </span>
-                            )}
+                        {sortKey === "score" ? (
+                          <span title="Crosscheck order for this sort. Not z500.">
+                            <span className="type-th">Score #</span>{" "}
+                            <span className="text-ink">
+                              <LiveNum value={rankStart + i + 1} format="rank" flash={false} />
+                            </span>
                           </span>
-                        </span>
+                        ) : null}
                         <span title="z500 default order: circulating market cap on ansem.io. Boosts are a badge.">
                           <span className="type-th">Listed</span>{" "}
                           <span className="text-ink">
@@ -1142,11 +1223,11 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                             ) : (
                               <>
                                 <LiveNum value={p.officialRank} format="rank" flash={false} />
-                                {p.officialDelta != null && p.officialDelta !== 0 && (
+                                {p.dayDelta || (sortKey === "listed" && p.rankDelta) ? (
                                   <span className="ml-1">
-                                    <LiveShift value={p.officialDelta} />
+                                    <LiveShift value={p.dayDelta || p.rankDelta} />
                                   </span>
-                                )}
+                                ) : null}
                               </>
                             )}
                           </span>
@@ -1161,27 +1242,39 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                   </div>
                   <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border pt-3">
                     <MiniStat
+                      k="NSFW"
+                      hint="Adult-tagged launch. Stays on this list, same as z500 with NSFW on."
+                      v={p.nsfw ? <NsfwBadge /> : "—"}
+                      className="text-sm"
+                    />
+                    <MiniStat
                       k="Market cap"
-                      hint="Circulating market cap from DexScreener"
-                      v={<LiveNum value={p.live?.marketCap} format={fmtUsd} />}
+                      hint="Circulating market cap on ansem.io — z500’s default sort"
+                      v={<LiveNum value={p.listedMarketCap ?? p.live?.marketCap} format={fmtUsd} />}
                       className="text-sm"
                     />
                     <MiniStat
                       k="Airdrop"
-                      hint="Dollar value of tokens sent to $ANSEM holders"
-                      v={<LiveNum value={p.live?.airdropMcap} format={fmtUsd} />}
+                      hint="Tokens airdropped to $ANSEM holders"
+                      v={fmtDrop(p.airdropTotal)}
+                      className="text-sm"
+                    />
+                    <MiniStat
+                      k="Volume"
+                      hint="24h volume from ansem.io"
+                      v={<LiveNum value={p.listedVolume24h ?? p.live?.volume24h} format={fmtUsd} />}
                       className="text-sm"
                     />
                     <MiniStat
                       k="24h change"
                       hint="Price change over the last 24 hours"
-                      v={<LiveNum value={p.live?.change24h} format={fmtPct} flash={false} />}
-                      className={cn("text-sm", changeClass(p.live?.change24h))}
+                      v={<LiveNum value={p.listedChange24h ?? p.live?.change24h} format={fmtPct} flash={false} />}
+                      className={cn("text-sm", changeClass(p.listedChange24h ?? p.live?.change24h))}
                     />
                     <MiniStat
                       k="Score"
-                      hint="Our ranking: airdrop + verified burns + boosts. Not z500."
-                      v={<LiveNum value={p.score} format={fmtUsd} />}
+                      hint="Our ranking: airdrop + verified burns + boosts. Not dollars. Not z500."
+                      v={<LiveNum value={p.score} format={fmtCompact} />}
                       className="text-sm"
                     />
                     <MiniStat
@@ -1248,13 +1341,17 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                 <colgroup>
                   <col className="rank" />
                   <col className="coin" />
-                  <col className="flags" />
+                  <col className="nsfw" />
                   <col className="tier" />
-                  <col className="price" />
                   <col className="n" />
-                  <col className="airdrop" />
+                  <col className="n" />
+                  <col className="n" />
+                  <col className="n" />
                   <col className="chg" />
+                  <col className="airdrop" />
                   <col className="n" />
+                  <col className="n" />
+                  <col className="flags" />
                   <col className="n" />
                   <col className="official" />
                   <col className="watch" />
@@ -1263,15 +1360,19 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                   <tr className="border-b border-border bg-panel">
                     <th className="type-th text-left">#</th>
                     <th className="type-th text-left">Coin</th>
-                    <th className="type-th text-left">Flags</th>
+                    <th className="type-th text-left">NSFW</th>
                     <th className="type-th text-left">Tier</th>
-                    <th className="type-th text-right">Price</th>
-                    {th("mcap", "Mcap")}
-                    {th("airdrop", "Airdrop")}
+                    {th("mcap", "MC")}
+                    <th className="type-th text-right">Age</th>
+                    <th className="type-th text-right">Txns</th>
+                    {th("volume", "Volume")}
                     {th("change", "24h")}
+                    {th("airdrop", "Airdrop")}
+                    <th className="type-th text-left">Status</th>
+                    {th("boost", "Boost")}
+                    <th className="type-th text-left">Flags</th>
                     {th("burn", "Burned")}
                     {th("score", "Score")}
-                    {th("listed", "Listed")}
                     <th className="type-th text-right">Watch</th>
                   </tr>
                 </thead>
@@ -1284,7 +1385,12 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                       <td className="font-mono text-xs tabular-nums text-muted">
                         <span className="inline-flex items-center gap-1 whitespace-nowrap">
                           <LiveNum value={rankStart + i + 1} format="int" flash={false} />
-                          {p.rankDelta !== 0 ? <LiveShift value={p.rankDelta} className="shrink-0 text-[10px] leading-none" /> : null}
+                          {p.dayDelta || (sortKey === "listed" && p.rankDelta) ? (
+                            <LiveShift
+                              value={p.dayDelta || p.rankDelta}
+                              className="shrink-0 text-[10px] leading-none"
+                            />
+                          ) : null}
                         </span>
                       </td>
                       <td className="coin">
@@ -1296,13 +1402,14 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                                 <span className="text-[13px] font-medium text-ink">
                                   <ScrambleText text={p.name} />
                                 </span>
-                                <span className="ml-2 font-mono text-[11px] text-dim">
+                                <span className="ml-2 inline-flex items-center gap-1 font-mono text-[11px] text-dim">
                                   {p.ticker ? `$${p.ticker}` : shortAddr(p.mint)}
+                                  {p.nsfw ? <NsfwBadge /> : null}
+                                  {isIndexMint(p.mint) ? <IndexBadge /> : null}
                                 </span>
                               </span>
                             </Link>
                             <CopyAddr value={p.mint} label="mint address" />
-                            {p.boostPoints > 0 && <BoostChip p={p} />}
                             <button
                               type="button"
                               aria-expanded={open}
@@ -1325,6 +1432,38 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                           {p.fetchError && <span className="block text-[10px] text-bad">{p.fetchError}</span>}
                         </div>
                       </td>
+                      <td>{p.nsfw ? <NsfwBadge /> : <span className="text-dim">—</span>}</td>
+                      <td>
+                        <TierBadge tier={p.tier} />
+                      </td>
+                      <td className="num text-ink">
+                        <LiveNum value={p.listedMarketCap ?? p.live?.marketCap} format={fmtUsd} />
+                      </td>
+                      <td className="num text-muted">
+                        <LiveAge at={p.addedAt} now={board.lastSynced} />
+                      </td>
+                      <td className="num text-ink">
+                        <LiveNum value={p.txns24h} format={fmtInt} flash={false} />
+                      </td>
+                      <td className="num text-ink">
+                        <LiveNum value={p.listedVolume24h ?? p.live?.volume24h} format={fmtUsd} />
+                      </td>
+                      <td className="num">
+                        <span
+                          className={
+                            (p.listedChange24h ?? p.live?.change24h) == null
+                              ? "text-dim"
+                              : (p.listedChange24h ?? p.live?.change24h)! >= 0
+                                ? "text-good"
+                                : "text-bad"
+                          }
+                        >
+                          <LiveNum value={p.listedChange24h ?? p.live?.change24h} format={fmtPct} flash={false} />
+                        </span>
+                      </td>
+                      <td className="num text-ink">{fmtDrop(p.airdropTotal)}</td>
+                      <td className="text-muted">{indexStatusLabel(p.status)}</td>
+                      <td className="num">{p.boostPoints > 0 ? <BoostChip p={p} /> : <span className="text-dim">—</span>}</td>
                       <td>
                         {(p.flags || []).length > 0 ? (
                           <FlagChips
@@ -1335,54 +1474,27 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                           />
                         ) : null}
                       </td>
-                      <td>
-                        <TierBadge tier={p.tier} />
-                      </td>
-                      <td className="num text-ink">
-                        <LiveNum value={p.live?.priceUsd} format={fmtPrice} />
-                      </td>
-                      <td className="num text-ink">
-                        <LiveNum value={p.live?.marketCap} format={fmtUsd} />
-                      </td>
-                      <td className="num text-ink">
-                        <LiveNum value={p.live?.airdropMcap} format={fmtUsd} />
-                      </td>
                       <td className="num">
-                        <span className={p.live?.change24h == null ? "text-dim" : p.live.change24h >= 0 ? "text-good" : "text-bad"}>
-                          <LiveNum value={p.live?.change24h} format={fmtPct} flash={false} />
-                        </span>
-                      </td>
-                      <td className="num">
-                        <BurnCell
-                          compact
-                          p={p}
-                          verifying={verifying === p.id}
-                          canEdit={p.source === "community" && p.addedBy === board.sid}
-                          onVerify={() => verify(p)}
-                          onDeep={() => verify(p, true)}
-                          onBurn={(v) => patchBurn(p, v)}
-                        />
-                      </td>
-                      <td className="num font-medium text-ink">
-                        <LiveNum value={p.score} format={fmtUsd} />
-                      </td>
-                      <td className="num">
-                        {p.officialRank == null ? (
+                        {isIndexMint(p.mint) ? (
                           <span className="text-dim">—</span>
                         ) : (
-                          <span className="whitespace-nowrap text-muted">
-                            <LiveNum value={p.officialRank} format={fmtRank} flash={false} />
-                            {p.officialDelta != null && p.officialDelta !== 0 ? (
-                              <span className="ml-1">
-                                <LiveShift value={p.officialDelta} />
-                              </span>
-                            ) : null}
-                          </span>
+                          <BurnCell
+                            compact
+                            p={p}
+                            verifying={verifying === p.id}
+                            canEdit={p.source === "community" && p.addedBy === board.sid}
+                            onVerify={() => verify(p)}
+                            onDeep={() => verify(p, true)}
+                            onBurn={(v) => patchBurn(p, v)}
+                          />
                         )}
+                      </td>
+                      <td className="num font-medium text-ink">
+                        <LiveNum value={p.score} format={fmtCompact} />
                       </td>
                       <td className="text-right">
                         <div className="flex items-center justify-end gap-1 whitespace-nowrap">
-                          {p.launchWallet ? (
+                          {p.launchWallet && !isIndexMint(p.mint) ? (
                             <CheckBurns
                               p={p}
                               verifying={verifying === p.id}
@@ -1437,7 +1549,7 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
                     </tr>
                     {open ? (
                       <tr className="border-b border-border bg-panel last:border-b-0">
-                        <td colSpan={12} className="details">
+                        <td colSpan={16} className="details">
                           <motion.div
                             initial={reduceMotion ? false : { opacity: 0, y: -8 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -1473,16 +1585,18 @@ export function Tracker({ initial }: { initial: BoardResponse }) {
 
         <div id="notes" className="mt-10 max-w-[720px] space-y-3 text-pretty text-[12.5px] leading-relaxed text-dim">
           <p>
-            Rank here follows the sort you picked. Listed # is z500’s default (circulating mcap). Score is Crosscheck
-            — airdrop + verified burns + boosts.{" "}
+            Rank here follows the sort you picked. Default is z500: circulating mcap, $ANSEM at #1, NSFW included.
+            Airdrop is token count. Score is Crosscheck points — airdrop + verified burns + boosts — not dollars and not
+            z500.{" "}
             <Link href="/guide" className="text-muted hover:text-ink">
               <ScrambleText text="How to read this site" />
             </Link>
             .
           </p>
           <p>
-            Prices come from ansem.io and DexScreener. Burned is the project total z500 credits; we still scan the launch
-            wallet independently. Missing a coin? Add it. Not financial advice. Session cookie only. See{" "}
+            Prices come from ansem.io and DexScreener. Burned is always the project total z500 credits. We independently
+            assign on-chain burns when the tx names a coin or only one coin is still missing that amount; otherwise we
+            mark them unverified. Missing a coin? Add it. Not financial advice. Session cookie only. See{" "}
             <Link href="/privacy" className="text-muted hover:text-ink">
               <ScrambleText text="privacy" />
             </Link>
@@ -1663,6 +1777,22 @@ function BoostChip({ p }: { p: Project }) {
   );
 }
 
+function NsfwBadge() {
+  return (
+    <span className="inline-flex h-[17px] shrink-0 items-center border border-bad/50 px-1 font-mono text-[8.5px] font-semibold uppercase leading-none text-bad">
+      NSFW
+    </span>
+  );
+}
+
+function IndexBadge() {
+  return (
+    <span className="inline-flex h-[17px] shrink-0 items-center border border-accent/40 px-1 font-mono text-[8.5px] font-semibold uppercase leading-none text-accent">
+      Index
+    </span>
+  );
+}
+
 const TIER_BADGE: Record<string, string> = {
   Bronze: "border-bronze-lit bg-transparent text-bronze-lit",
   Gold: "border-gold-lit bg-transparent text-gold-lit",
@@ -1784,11 +1914,12 @@ function BurnCell({
   onDeep: () => void;
   onBurn: (v: string) => void;
 }) {
-  const credited = p.listedBurn != null;
+  const source = burnSource(p);
   const burned = publicBurn(p);
+  const settled = source === "listed" || source === "on-chain";
   const amount =
-    credited || p.verifiedBurn != null ? (
-      <span className="font-mono text-xs font-medium tabular-nums text-good">
+    source === "listed" || source === "on-chain" || source === "partial" ? (
+      <span className={cn("font-mono text-xs font-medium tabular-nums", settled ? "text-good" : "text-dim")}>
         <LiveNum value={burned} format={fmtCompact} flash={false} />
       </span>
     ) : canEdit ? (
@@ -1799,7 +1930,7 @@ function BurnCell({
         placeholder="0"
         className="h-[29px] w-20 max-w-full border border-input-border bg-input px-2 text-right font-mono text-xs tabular-nums text-accent-soft"
       />
-    ) : p.launchWallet ? (
+    ) : source === "pending" ? (
       <span className="font-mono text-xs tabular-nums text-dim">Pending</span>
     ) : (
       <span className="font-mono text-xs tabular-nums text-muted">
@@ -1811,38 +1942,31 @@ function BurnCell({
     <CheckBurns p={p} verifying={verifying} onVerify={onVerify} onDeep={onDeep} />
   ) : null;
 
-  if (compact) return amount;
+  const note =
+    source === "listed" && p.verifiedBurn != null && p.verifiedBurn !== p.listedBurn
+      ? `listed · we ${fmtCompact(p.verifiedBurn)}`
+      : burnSourceLabel(source);
+  const compactNote =
+    source === "listed" ? "listed" : source === "on-chain" ? "on-chain" : source === "partial" ? "partial" : "";
+  const noteOpen = source === "partial" || source === "pending" || source === "entered" || source === "none";
+
+  if (compact) {
+    return (
+      <span className="inline-flex min-w-0 items-baseline gap-1">
+        {amount}
+        {compactNote ? (
+          <span className={cn("font-mono text-[9px] uppercase", noteOpen ? "text-dim" : "text-good")}>{compactNote}</span>
+        ) : null}
+      </span>
+    );
+  }
 
   return (
     <div className="flex min-w-0 flex-col items-start gap-1 md:items-end">
-      {credited || p.verifiedBurn != null ? (
-        <>
-          {amount}
-          <span className="font-mono text-[9px] uppercase text-good">
-            {credited
-              ? p.verifiedBurn != null && p.verifiedBurn !== p.listedBurn
-                ? `listed · wallet ${fmtCompact(p.verifiedBurn)}`
-                : "listed"
-              : p.verifyExhausted
-                ? "on-chain"
-                : "partial scan"}
-          </span>
-        </>
-      ) : canEdit ? (
-        <>
-          {amount}
-          <span className="font-mono text-[9px] uppercase text-dim">
-            {p.burnAmount ? "you entered this" : "none yet"}
-          </span>
-        </>
-      ) : p.launchWallet ? (
-        <>
-          {amount}
-          <span className="font-mono text-[9px] uppercase text-dim">scan queued</span>
-        </>
-      ) : (
-        amount
-      )}
+      {amount}
+      {note ? (
+        <span className={cn("font-mono text-[9px] uppercase", noteOpen ? "text-dim" : "text-good")}>{note}</span>
+      ) : null}
       {check ? <div className="mt-1">{check}</div> : null}
     </div>
   );

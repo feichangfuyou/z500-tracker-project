@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildBoard } from "@/lib/board";
 import { compactBoard, PUBLIC_CORS, publicCoin, RANK_NOTE } from "@/lib/public";
+import { SCORE_KIND } from "@/lib/score";
 import { limited, limitResponse } from "@/lib/limit";
 
 export const runtime = "nodejs";
@@ -18,10 +19,11 @@ export async function GET(req: Request) {
         at: board.lastSynced,
         ansemPrice: board.ansemPrice,
         rankBasis: "z500-mcap",
-        scoreKind: "proxy",
+        scoreKind: SCORE_KIND,
         rankNote: RANK_NOTE,
-        listedBurned: board.stats.burnedAnsem,
+        listedBurned: board.stats.listedBurned,
         verifiedBurned: board.stats.verifiedBurned,
+        burnVerifiedPct: board.stats.burnVerifiedPct,
         coins: board.projects.slice(0, 100).map(publicCoin),
       },
       {

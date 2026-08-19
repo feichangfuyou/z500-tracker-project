@@ -3,13 +3,14 @@
 import { animate, useMotionValue, useMotionValueEvent, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
-import { fmtCompact, fmtHoldPct, fmtInt, fmtNum, fmtPct, fmtPrice, fmtRank, fmtUsd } from "@/lib/format";
+import { fmtCompact, fmtHead, fmtHoldPct, fmtInt, fmtNum, fmtPct, fmtPrice, fmtRank, fmtUsd } from "@/lib/format";
 
 const FORMATS = {
   usd: fmtUsd,
   price: fmtPrice,
   num: fmtNum,
   compact: fmtCompact,
+  head: fmtHead,
   pct: fmtPct,
   holdPct: fmtHoldPct,
   rank: fmtRank,

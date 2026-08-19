@@ -12,6 +12,8 @@ type PublicCoin = {
   officialRank?: number | null;
   officialDelta?: number | null;
   burned?: number | null;
+  listedBurned?: number | null;
+  walletBurned?: number | null;
   boostPoints?: number;
   flags?: Project["flags"];
   marketCap?: number | null;
@@ -46,8 +48,8 @@ export function LiveEmbed({
           score: c.score ?? prev.score,
           officialRank: c.officialRank ?? prev.officialRank,
           officialDelta: c.officialDelta ?? prev.officialDelta,
-          verifiedBurn: c.burned ?? prev.verifiedBurn,
-          listedBurn: c.burned ?? prev.listedBurn,
+          verifiedBurn: c.walletBurned ?? prev.verifiedBurn,
+          listedBurn: c.listedBurned ?? prev.listedBurn,
           boostPoints: c.boostPoints ?? prev.boostPoints,
           flags: c.flags?.length ? c.flags : prev.flags,
           live: prev.live

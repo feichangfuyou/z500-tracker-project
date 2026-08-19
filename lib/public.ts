@@ -1,8 +1,9 @@
 import { ansemCoinUrl } from "./links";
+import { burnCoverage } from "./coverage";
 import { publicProvenance } from "./flags";
 import { CDN_CACHE_LONG } from "./http";
 import { publicImageUrl } from "./media";
-import { publicBurn } from "./score";
+import { publicBurn, SCORE_FORMULA, SCORE_KIND, scoreParts } from "./score";
 import type { BoardResponse, Project, TapeEvent } from "./types";
 
 export const PUBLIC_CORS = {
@@ -17,9 +18,11 @@ export const PUBLIC_HEADERS = {
 };
 
 export const RANK_NOTE =
-  "officialRank follows z500’s default sort: circulating market cap, including $ANSEM at #1. burned is the project total ansem.io credits (all burners), not only the listed launch wallet. score is Crosscheck’s independent ranking (airdrop + burns + boosts).";
+  "officialRank follows z500’s default sort: circulating market cap, including $ANSEM at #1 and NSFW launches. burned is the project total ansem.io credits (all burners). independentlyBurned is $ANSEM we assigned to this coin (launch wallet plus stranger burns we could label). walletBurned is the listed-launch-wallet scan only. burnCoveragePct is independentlyBurned ÷ burned. Unlabeled burns stay unlabeled. score is Crosscheck v1: airdrop_mcap × 0.6 + ($ANSEM_burned × $ANSEM_price × 40) + (boost_points × 250). If airdrop_mcap is 0 we use circulating mcap. Not z500.";
 
 export function publicCoin(p: Project) {
+  const coverage = burnCoverage(p);
+  const parts = scoreParts(p);
   return {
     mint: p.mint,
     name: p.name,
@@ -28,15 +31,34 @@ export function publicCoin(p: Project) {
     tier: p.tier,
     status: p.status || null,
     score: p.score,
-    scoreKind: "proxy" as const,
+    scoreKind: SCORE_KIND,
+    scoreFormula: SCORE_FORMULA,
+    scoreParts: {
+      airdrop: parts.airdrop,
+      burns: parts.burns,
+      boosts: parts.boosts,
+      mcapSource: parts.mcapSource,
+      total: parts.total,
+    },
     officialRank: p.officialRank,
     listedRank: p.officialRank,
     officialDelta: p.officialDelta,
+    dayDelta: p.dayDelta || 0,
     rankBasis: "z500-mcap" as const,
     marketCap: p.live?.marketCap ?? null,
     airdropMcap: p.live?.airdropMcap ?? null,
+    airdropTotal: p.airdropTotal ?? null,
+    nsfw: Boolean(p.nsfw),
+    txns24h: p.txns24h ?? null,
     burned: publicBurn(p),
-    burnedComplete: p.listedBurn != null || Boolean(p.verifyExhausted),
+    listedBurned: p.listedBurn ?? null,
+    independentlyBurned: p.verifiedBurn,
+    walletBurned: p.walletBurned ?? p.verifiedBurn,
+    burnedComplete: coverage.status === "complete" && p.listedBurn != null,
+    walletScanComplete: Boolean(p.verifyExhausted),
+    burnCoveragePct: coverage.pct,
+    burnCoverageStatus: coverage.status,
+    listedBurners: p.listedBurners ?? null,
     boostPoints: p.boostPoints,
     flags: p.flags,
     launchWallet: p.launchWallet,
@@ -55,6 +77,7 @@ function compactLive(live: Project["live"]) {
     priceUsd: live.priceUsd,
     marketCap: live.marketCap,
     airdropMcap: live.airdropMcap,
+    volume24h: live.volume24h,
     change24h: live.change24h,
     liquidity: live.liquidity,
   };
@@ -72,9 +95,15 @@ export function compactProject(p: Project): Project {
     launchWallet: p.launchWallet,
     imageUrl: publicImageUrl(p.imageUrl),
     status: p.status || null,
+    airdropTotal: p.airdropTotal ?? null,
+    txns24h: p.txns24h ?? null,
+    listedVolume24h: p.listedVolume24h ?? null,
+    listedChange24h: p.listedChange24h ?? null,
+    nsfw: p.nsfw,
     burnAmount: 0,
-    burnPriceRef: 0,
+    burnPriceRef: p.burnPriceRef,
     verifiedBurn: p.verifiedBurn,
+    walletBurned: p.walletBurned,
     verifiedTxChecked: null,
     verifiedAt: null,
     verifyExhausted: p.verifyExhausted,
@@ -86,6 +115,7 @@ export function compactProject(p: Project): Project {
     lastUpdated: null,
     fetchError: p.fetchError,
     rankDelta: p.rankDelta,
+    dayDelta: p.dayDelta || 0,
     holderTop10Pct: p.holderTop10Pct,
     sniper: p.sniper,
     walletProvenance: p.walletProvenance,

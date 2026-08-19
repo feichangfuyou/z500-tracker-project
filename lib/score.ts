@@ -1,6 +1,6 @@
-import { BOOST_WEIGHT, type Project } from "./types";
+import { AIRDROP_WEIGHT, BOOST_WEIGHT, BURN_USD_WEIGHT, type Project } from "./types";
 
-export { BOOST_WEIGHT };
+export { AIRDROP_WEIGHT, BOOST_WEIGHT, BURN_USD_WEIGHT };
 
 export function effectiveBurn(p: Pick<Project, "verifiedBurn" | "burnAmount">) {
   return p.verifiedBurn !== undefined && p.verifiedBurn !== null
@@ -26,17 +26,88 @@ function mcapInput(airdropMcap: number | null | undefined, circulating: number |
   return circulating || 0;
 }
 
-/** Directional proxy: airdropped-supply mcap + burn value + active boosts. Not the official index formula. */
-export function computeScore(
-  p: Pick<Project, "live" | "verifiedBurn" | "burnPriceRef"> & {
-    burnAmount?: number;
-    boostPoints?: number;
-    listedBurn?: number | null;
-  },
-) {
-  const mcap = mcapInput(p.live?.airdropMcap, p.live?.marketCap);
-  const burnUsd = publicBurn(p) * (p.burnPriceRef || 0);
-  return mcap * 0.6 + burnUsd * 40 + (p.boostPoints || 0) * BOOST_WEIGHT;
+export type ScoreMcapSource = "airdrop" | "circulating";
+
+export type ScoreParts = {
+  airdropMcap: number;
+  circulatingMcap: number;
+  mcapUsed: number;
+  mcapSource: ScoreMcapSource;
+  airdrop: number;
+  burnTokens: number;
+  burnUsd: number;
+  burns: number;
+  boostPoints: number;
+  boosts: number;
+  total: number;
+};
+
+export type ScoreInput = Pick<Project, "live" | "verifiedBurn" | "burnPriceRef"> & {
+  burnAmount?: number;
+  boostPoints?: number;
+  listedBurn?: number | null;
+  launchWallet?: string | null;
+  verifyExhausted?: boolean;
+};
+
+export type BurnSource = "listed" | "on-chain" | "partial" | "pending" | "entered" | "none";
+
+export function burnSource(p: {
+  verifiedBurn?: number | null;
+  listedBurn?: number | null;
+  launchWallet?: string | null;
+  verifyExhausted?: boolean;
+  burnAmount?: number;
+}): BurnSource {
+  if (p.listedBurn != null) return "listed";
+  if (!p.launchWallet) return p.burnAmount && p.burnAmount > 0 ? "entered" : "none";
+  if (p.verifiedBurn == null) return "pending";
+  return p.verifyExhausted ? "on-chain" : "partial";
+}
+
+export function burnSourceLabel(source: BurnSource) {
+  if (source === "listed") return "listed";
+  if (source === "on-chain") return "on-chain";
+  if (source === "partial") return "partial";
+  if (source === "pending") return "pending";
+  if (source === "entered") return "entered";
+  return "";
+}
+
+/** Published Crosscheck v1: airdropped-supply mcap × 0.6 + burn USD × 40 + boost points × 250. */
+export const SCORE_FORMULA =
+  "score = airdrop_mcap × 0.6 + ($ANSEM_burned × $ANSEM_price × 40) + (boost_points × 250)";
+
+export const SCORE_KIND = "crosscheck-v1" as const;
+
+export function scoreParts(p: ScoreInput): ScoreParts {
+  const airdropMcap = p.live?.airdropMcap || 0;
+  const circulatingMcap = p.live?.marketCap || 0;
+  const mcapUsed = mcapInput(airdropMcap, circulatingMcap);
+  const mcapSource: ScoreMcapSource = airdropMcap > 0 ? "airdrop" : "circulating";
+  const burnTokens = publicBurn(p);
+  const burnUsd = burnTokens * (p.burnPriceRef || 0);
+  const boostPoints = p.boostPoints || 0;
+  const airdrop = mcapUsed * AIRDROP_WEIGHT;
+  const burns = burnUsd * BURN_USD_WEIGHT;
+  const boosts = boostPoints * BOOST_WEIGHT;
+  return {
+    airdropMcap,
+    circulatingMcap,
+    mcapUsed,
+    mcapSource,
+    airdrop,
+    burnTokens,
+    burnUsd,
+    burns,
+    boostPoints,
+    boosts,
+    total: airdrop + burns + boosts,
+  };
+}
+
+export function computeScore(p: ScoreInput) {
+  return scoreParts(p).total;
 }
 
 /** z500’s default sort: circulating mcap from ansem.io. Never Dex overlay. */

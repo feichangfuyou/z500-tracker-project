@@ -39,11 +39,12 @@ export function EmbedBadge({ project, variant }: { project: EmbedCoin; variant: 
       <BadgeFrame className="h-[88px] w-full max-w-[360px] gap-3 px-3">
         <BrandMark className="size-6 shrink-0" />
         <span className="min-w-0">
-          <span className="type-eyebrow block">Verified burn</span>
+          <span className="type-eyebrow block">{project.listedBurn != null ? "Listed burn" : "Wallet burn"}</span>
           <span className="mt-1 block truncate font-mono text-sm tabular-nums text-ink">
             {hasBurn ? (
               <>
-                <LiveNum value={burned} format="compact" reel /> $ANSEM burned
+                <LiveNum value={burned} format="compact" reel />{" "}
+                {project.listedBurn != null ? "$ANSEM credited" : "$ANSEM burned"}
               </>
             ) : (
               "Burns not verified"

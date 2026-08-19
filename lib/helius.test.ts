@@ -105,6 +105,7 @@ describe("heliusHistoryUrl", () => {
     expect(url.searchParams.get("before")).toBe("b");
     expect(url.searchParams.get("until")).toBe("u");
     expect(url.searchParams.get("type")).toBeNull();
+    expect(heliusHistoryUrl("Mint1", "k", { type: "BURN" }).searchParams.get("type")).toBe("BURN");
     expect(url.pathname).toContain("/addresses/Wallet1/transactions");
   });
 });

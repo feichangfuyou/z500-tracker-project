@@ -15,8 +15,16 @@ export const metadata: Metadata = {
 
 const API_FIELDS = [
   ["burned", "$ANSEM z500 credits to the coin (project burners), not only the listed launch wallet"],
+  ["listedBurned", "Same as burned, explicit name"],
+  ["walletBurned", "Listed-launch-wallet on-chain scan only. Can differ from burned and from independentlyBurned."],
+  ["independentlyBurned", "$ANSEM we assigned to this coin: launch wallet plus stranger burns we could label"],
+  ["burnCoveragePct", "independentlyBurned ÷ burned. Unlabeled burns are not guessed."],
+  ["walletScanComplete", "true when we finished that wallet’s history — not every burn in existence"],
   ["provenance", "API: matched / mismatch / unknown — listed burn wallet vs pump deployer"],
-  ["flags", "Sniper, thin liq, concentration — not listed ≠ create"],
+  ["flags", "Live coin flags: sniper, thin liq, concentration — not listed ≠ create"],
+  ["issuedAt", "On /api/public/flags: when a wallet crossed 5 or 8 launches. Survives the live tape."],
+  ["outcome", "On /api/public/flags: confirmed_rug or held after 14 days when liquidity is known; otherwise null"],
+  ["rugRate", "On /api/public/flags: confirmed_rug ÷ closed serial flags. Omitted until a flag closes."],
   ["officialRank", "z500 default: circulating mcap rank, counting $ANSEM as #1"],
   ["listedRank", "Same number as officialRank, clearer name"],
   ["reasons", "On /api/public/radar: pending, partial, short, serial, sniper"],
@@ -87,7 +95,8 @@ export default async function PartnerPage({ searchParams }: { searchParams: Prom
             {`GET /api/public/coin/{mint}
 GET /api/public/board
 GET /api/public/radar
-GET /api/public/index`}
+GET /api/public/index
+GET /api/public/flags`}
           </pre>
           <dl className="mt-6 divide-y divide-border border-t border-border">
             {API_FIELDS.map(([k, v]) => (

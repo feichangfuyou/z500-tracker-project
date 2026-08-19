@@ -14,6 +14,8 @@ const KIND_CLASS: Record<TapeEvent["kind"], string> = {
   launch: "text-accent",
   boost: "text-good",
   migrate: "text-muted",
+  flag: "text-bad",
+  rank: "text-accent",
 };
 
 const KIND_ICON: Record<TapeEvent["kind"], StatIconName | null> = {
@@ -21,6 +23,8 @@ const KIND_ICON: Record<TapeEvent["kind"], StatIconName | null> = {
   launch: "rocket",
   boost: "bolt",
   migrate: null,
+  flag: "flag",
+  rank: "flag",
 };
 
 export function TapeStrip({ events }: { events: TapeEvent[] }) {

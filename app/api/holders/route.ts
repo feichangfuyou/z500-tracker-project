@@ -52,6 +52,7 @@ export async function POST(req: Request) {
         createSlot: prev?.createSlot ?? null,
         sameBlockBuys: prev?.sameBlockBuys ?? 0,
         sameBlockWallets: prev?.sameBlockWallets ?? 0,
+        sameBlockBuyers: prev?.sameBlockBuyers,
         sniper: radar.sniper || Boolean(prev?.sniper),
       };
       return { ...store.holders[mint], dossier: store.dossiers[mint] };

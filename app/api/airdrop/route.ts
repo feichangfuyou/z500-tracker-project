@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     const [store, accounts] = await Promise.all([readStore(), fetchWalletMintBalances(wallet)]);
     const snapshot = (store.coinSnapshot.coins || []) as AnsemCoin[];
     const coins = snapshot
-      .filter((c) => !c.nsfw && c.mint !== ANSEM_MINT)
+      .filter((c) => c.mint !== ANSEM_MINT)
       .map((c) => ({
         mint: c.mint,
         name: c.name,

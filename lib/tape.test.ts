@@ -3,8 +3,10 @@ import {
   BOOST_EXPIRING_MS,
   burnEvents,
   detectBoostEvents,
+  detectDayRankMoves,
   detectLaunches,
   detectMigrations,
+  detectSerialFlags,
   pushHistory,
   pushTape,
   seriesForMint,
@@ -23,6 +25,46 @@ describe("detectLaunches", () => {
     expect(events[0]?.mint).toBe("b");
     expect(events[0]?.slug).toBe("bravo");
     expect(events[0]?.label).toContain("ansem.io");
+  });
+});
+
+describe("detectSerialFlags", () => {
+  it("fires when a wallet crosses five launches, not on the first snapshot", () => {
+    const coins = [
+      { mint: "a", name: "A", wallet: "w" },
+      { mint: "b", name: "B", wallet: "w" },
+      { mint: "c", name: "C", wallet: "w" },
+      { mint: "d", name: "D", wallet: "w" },
+      { mint: "e", name: "E", ticker: "E", wallet: "w", slug: "echo" },
+    ];
+    expect(detectSerialFlags([], coins, 1)).toEqual([]);
+    const events = detectSerialFlags(["a", "b", "c", "d"], coins, 2);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.kind).toBe("flag");
+    expect(events[0]?.mint).toBe("e");
+    expect(events[0]?.wallet).toBe("w");
+    expect(events[0]?.label).toContain("#5");
+  });
+});
+
+describe("detectDayRankMoves", () => {
+  it("emits once-a-day moves of 5+ spots vs yesterday's index", () => {
+    const yesterday = {
+      at: Date.parse("2026-08-18T00:00:00Z"),
+      coins: [
+        { mint: "a", name: "A", score: 9, officialRank: 1, airdropMcap: 1, burned: 0 },
+        { mint: "b", name: "B", ticker: "B", score: 8, officialRank: 2, airdropMcap: 1, burned: 0 },
+      ],
+    };
+    const events = detectDayRankMoves(
+      yesterday,
+      [
+        { mint: "b", rank: 1, name: "B", ticker: "B" },
+        { mint: "a", rank: 8, name: "A" },
+      ],
+      Date.parse("2026-08-19T12:00:00Z"),
+    );
+    expect(events.some((e) => e.kind === "rank" && e.mint === "a" && e.label.includes("down"))).toBe(true);
   });
 });
 

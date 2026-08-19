@@ -28,7 +28,7 @@ loadEnv(resolve(process.cwd(), ".env.local"));
 
 function pendingFromStore(store: Awaited<ReturnType<typeof readStore>>) {
   const coins = (store.coinSnapshot.coins || []) as { nsfw?: boolean; mint?: string; creatorWallet?: string; createdAt?: string; tier?: unknown }[];
-  const visible = coins.filter((c) => !c.nsfw && c.mint !== ANSEM_MINT);
+  const visible = coins.filter((c) => c.mint && c.mint !== ANSEM_MINT);
   const now = Date.now();
   const targets = [
     ...visible

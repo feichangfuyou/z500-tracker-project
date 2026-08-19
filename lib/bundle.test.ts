@@ -10,6 +10,7 @@ describe("bundleFromWindow", () => {
       { slot: 11, feePayer: "later", pumpIxs: 1 },
     ]);
     expect(hit.sameBlockWallets).toBe(3);
+    expect(hit.sameBlockBuyers).toEqual(["creator", "snipe1", "snipe2"]);
     expect(hit.sniper).toBe(true);
   });
 

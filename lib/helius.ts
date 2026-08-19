@@ -31,6 +31,9 @@ export function isTransferCursor(cursor?: string | null) {
 export type HeliusTx = {
   signature?: string;
   type?: string;
+  timestamp?: number;
+  feePayer?: string;
+  description?: string;
   tokenTransfers?: {
     mint?: string;
     tokenAmount?: number | string;
@@ -39,11 +42,19 @@ export type HeliusTx = {
   }[];
   events?: { burn?: { amount?: number | string }[] };
   accountData?: {
+    account?: string;
     tokenBalanceChanges?: {
       mint?: string;
       rawTokenAmount?: { tokenAmount?: string; decimals?: number };
     }[];
   }[];
+  instructions?: {
+    programId?: string;
+    accounts?: string[];
+    data?: string;
+    innerInstructions?: { programId?: string; accounts?: string[]; data?: string }[];
+  }[];
+  innerInstructions?: { programId?: string; accounts?: string[]; data?: string }[];
 };
 
 export type BurnIndexMode = "fresh" | "head" | "older";
@@ -70,13 +81,14 @@ export function heliusPageBudget(mode: BurnIndexMode) {
 export function heliusHistoryUrl(
   address: string,
   key: string,
-  q: { before?: string; until?: string; limit?: number } = {},
+  q: { before?: string; until?: string; limit?: number; type?: string } = {},
 ) {
   const url = new URL(`https://api.helius.xyz/v0/addresses/${encodeURIComponent(address)}/transactions`);
   url.searchParams.set("api-key", key);
   url.searchParams.set("limit", String(q.limit ?? HELIUS_PAGE));
   if (q.before) url.searchParams.set("before", q.before);
   if (q.until) url.searchParams.set("until", q.until);
+  if (q.type) url.searchParams.set("type", q.type);
   return url;
 }
 
@@ -167,6 +179,27 @@ export type HeliusIndexResult = {
   indexedBy?: "helius" | "rpc";
 };
 
+export type HeliusCollectOpts = {
+  mode: BurnIndexMode;
+  cursor?: string | null;
+  headSig?: string | null;
+  maxPages?: number;
+  deadline?: number;
+  key?: string | null;
+  reindex?: boolean;
+  paceMs?: number;
+  type?: string;
+};
+
+export type HeliusCollectResult = {
+  txs: HeliusTx[];
+  cursor: string | null;
+  exhausted: boolean;
+  headSig: string | null;
+  hitUntil: boolean;
+  reachedEnd: boolean;
+};
+
 async function sleep(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
 }
@@ -190,19 +223,11 @@ async function fetchHeliusPage(url: URL) {
   return null;
 }
 
-export async function indexHeliusBurns(
-  wallet: string,
-  opts: {
-    mode: BurnIndexMode;
-    cursor?: string | null;
-    headSig?: string | null;
-    maxPages?: number;
-    deadline?: number;
-    key?: string | null;
-    reindex?: boolean;
-    paceMs?: number;
-  },
-): Promise<HeliusIndexResult | null> {
+/** Newest-first pages for one address. `type=BURN` is how we walk every $ANSEM burn. */
+export async function collectHeliusTxs(
+  address: string,
+  opts: HeliusCollectOpts,
+): Promise<HeliusCollectResult | null> {
   const key = opts.key ?? heliusApiKey();
   if (!key) return null;
   const maxPages = opts.maxPages ?? heliusPageBudget(opts.mode);
@@ -217,7 +242,9 @@ export async function indexHeliusBurns(
   const collected: HeliusTx[] = [];
 
   for (let page = 0; page < maxPages && Date.now() < deadline; page += 1) {
-    const batch = await fetchHeliusPage(heliusHistoryUrl(wallet, key, { before, until, limit: HELIUS_PAGE }));
+    const batch = await fetchHeliusPage(
+      heliusHistoryUrl(address, key, { before, until, limit: HELIUS_PAGE, type: opts.type }),
+    );
     if (!batch) {
       if (!collected.length && page === 0) return null;
       break;
@@ -249,12 +276,22 @@ export async function indexHeliusBurns(
     await sleep(opts.paceMs ?? 80);
   }
 
+  return { txs: collected, cursor, exhausted, headSig, hitUntil, reachedEnd };
+}
+
+export async function indexHeliusBurns(
+  wallet: string,
+  opts: HeliusCollectOpts,
+): Promise<HeliusIndexResult | null> {
+  const collected = await collectHeliusTxs(wallet, opts);
+  if (!collected) return null;
+
   if (opts.mode === "head") {
-    const apply = headScanApply(hitUntil, reachedEnd, collected.length);
+    const apply = headScanApply(collected.hitUntil, collected.reachedEnd, collected.txs.length);
     if (apply === "skip") {
       return {
         verifiedBurn: 0,
-        txChecked: collected.length,
+        txChecked: collected.txs.length,
         txBurned: 0,
         cursor: opts.cursor || null,
         exhausted: true,
@@ -264,28 +301,28 @@ export async function indexHeliusBurns(
         indexedBy: "helius",
       };
     }
-    const summed = sumHeliusBurns(collected);
+    const summed = sumHeliusBurns(collected.txs);
     return {
       verifiedBurn: summed.verifiedBurn,
       txChecked: summed.txChecked,
       txBurned: summed.txBurned,
       cursor: opts.cursor || null,
       exhausted: true,
-      headSig,
+      headSig: collected.headSig,
       events: summed.events,
       replace: apply === "replace" || Boolean(opts.reindex),
       indexedBy: "helius",
     };
   }
 
-  const summed = sumHeliusBurns(collected);
+  const summed = sumHeliusBurns(collected.txs);
   return {
     verifiedBurn: summed.verifiedBurn,
     txChecked: summed.txChecked,
     txBurned: summed.txBurned,
-    cursor,
-    exhausted,
-    headSig,
+    cursor: collected.cursor,
+    exhausted: collected.exhausted,
+    headSig: collected.headSig,
     events: summed.events,
     replace: Boolean(opts.reindex),
     indexedBy: "helius",

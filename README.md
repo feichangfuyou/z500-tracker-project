@@ -28,20 +28,20 @@ Open [http://localhost:3000](http://localhost:3000). Moderation: [/mod](http://l
 
 - **Shared public board** — SQLite locally, Supabase `store_blob` when the env vars above are set. Project burns (what z500 credits per coin) come through a Supabase function because ansem.io blocks that route from Vercel.
 - **Discovery** — ansem.io `/api/coins`, then cached snapshot, then pump.fun, then DexScreener.
-- **Onchain burns** — Helius `type=BURN` indexer with resume (head + older pages). RPC 12/80 pages is failover when no Helius key.
+- **Onchain burns** — Helius `type=BURN` indexer plus a live webhook. Stranger burns stay on the ledger. We assign them to a coin when the tx names it (including memos) or the amount uniquely matches a missing ansem.io credited total; otherwise they stay unverified. Coverage is independently assigned ÷ z500 credited.
 - **Creator check** — listed launch wallet vs mint create-tx (pump user / mint authority) first, pump.fun creator API second. Different wallet is a warning, not a fail.
-- **Same-slot bundles** — create-window parse plus RugCheck sniper/insider flags.
+- **Same-slot bundles** — create-window parse plus RugCheck sniper/insider flags. Serial deployers are flagged the moment a wallet hits 5 or 8 coins, on a live “just flagged” feed.
 - **Boosts** — live ansem.io `/api/boosts` (expired dropped). Shown on the board and folded into score.
 - **Dex overlay** — circulating mcap / volume / liquidity from DexScreener, batched and cached. Listed mcap is fallback.
-- **Listed vs Crosscheck** — Listed # follows z500’s default (circulating mcap, $ANSEM as #1). Burned is the project total ansem.io credits. Crosscheck score adds verified burns, airdrop value, and boosts.
-- **Score proxy** — airdropped-supply mcap + burn value + active boosts. Not the official index formula.
-- **Watchlist** — session cookie plus optional wallet key; merges with this browser's list.
+- **Listed vs Crosscheck** — Listed # follows z500’s default (circulating mcap, $ANSEM as #1, NSFW included). Burned is the project total ansem.io credits. Crosscheck score is published v1: airdrop mcap × 0.6 + burn USD × 40 + boost points × 250, with a per-coin breakdown.
+- **Score** — published formula on `/guide#score`. Not the official index formula.
+- **Watchlist** — session cookie plus optional wallet key. Stars arm closed-tab alerts for flags and rank moves.
 - **Coin dossier** — holders, create-tx, Dex chart, share card, OG image, embed iframe.
-- **Daily index** — top 25 snapshot per UTC day (`/index`).
-- **Known wallets** — launch wallets grouped on `/wallets`, serial deployer flags at 5+ coins.
-- **Airdrop P&L** — in wallet vs still-claimable vs claimed-then-sold. Claim CTAs go to ansem.io.
+- **Daily index** — top 25 snapshot per UTC day (`/index`). Backbone for “moved X spots today.”
+- **Known wallets** — launch wallets grouped on `/wallets`, serial deployer flags at 5+ coins. Crossings at 5 and 8 are timestamped on a durable ledger (`/api/public/flags`) so they survive the 80-row tape.
+- **Airdrop P&L** — optional `/airdrop` lookup: in wallet vs still-claimable vs claimed-then-sold. Claim CTAs go to ansem.io.
 - **Closed-tab alerts** — Telegram/Discord from cron. `/mod` shows armed channels and can send a test.
-- **Public JSON** — `/api/public/board`, `/api/public/coin/[mint]`, `/api/public/index` (CORS `*`).
+- **Public JSON** — `/api/public/board`, `/api/public/coin/[mint]`, `/api/public/index`, `/api/public/flags` (CORS `*`).
 - **Partner embeds** — `/partner` install page; `/embed/[mint]?v=chip|burn|flags|delta|card`.
 - **CI** — `npx tsc --noEmit`, `npm test`, `npm run lint`, `npm run test:e2e` on every push.
 - **License** — MIT.
@@ -59,7 +59,7 @@ Session cookie `tracker_sid` plus an optional watch wallet. Details: `/privacy`.
 | pump.fun coin API | discovery fallback, creator hint | Medium — public, unofficial |
 | Solana RPC / Helius | onchain $ANSEM burns, mint create-tx, holders | High for the scanned window |
 | RugCheck | holder concentration, insider/sniper labels | Medium — third-party |
-| Score formula | Crosscheck rank | Independent — airdrop + burns + boosts. Listed # is z500 mcap |
+| Score formula | Crosscheck rank | Independent, published — airdrop × 0.6 + burn USD × 40 + boosts × 250. Listed # is z500 mcap |
 
 ## Files
 

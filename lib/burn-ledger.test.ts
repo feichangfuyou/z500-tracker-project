@@ -55,6 +55,8 @@ describe("mergeLedger", () => {
     const second = mergeLedger(first.ledger, [hit({ signature: "s1" }), hit({ signature: "s2", amount: 3 })]);
     expect(second.fresh.map((h) => h.signature)).toEqual(["s2"]);
     expect(second.ledger.map((h) => h.signature)).toEqual(["s2", "s1"]);
+    const skipped = mergeLedger([], [hit({ signature: "s1" })], 300, ["s1"]);
+    expect(skipped.fresh).toHaveLength(0);
   });
 });
 
@@ -131,11 +133,12 @@ describe("ingestWalletScan", () => {
 });
 
 describe("ingestWebhookHits", () => {
-  it("ignores unknown wallets and alerts on known launch wallets", () => {
+  it("keeps unlabeled wallets on the ledger without stuffing them into the launch-wallet cache", () => {
     const out = ingestWebhookHits({
       hits: [
         { signature: "live", wallet: "w1", amount: 7, at: 9 },
         { signature: "noise", wallet: "stranger", amount: 99, at: 9 },
+        { signature: "hint", wallet: "stranger2", amount: 4, at: 9, mint: "m9" },
       ],
       burns: {},
       ledger: [],
@@ -144,10 +147,14 @@ describe("ingestWebhookHits", () => {
       namedFor: (wallet) => (wallet === "w1" ? { mint: "m1", name: "Frog", ticker: "FROG" } : null),
       now: 9,
     });
-    expect(out.fresh).toHaveLength(1);
+    expect(out.fresh).toHaveLength(3);
     expect(out.burns.w1?.verifiedBurn).toBe(7);
-    expect(out.events[0]?.id).toBe("burn:live");
     expect(out.burns.stranger).toBeUndefined();
+    expect(out.ledger.find((h) => h.wallet === "stranger")?.labeled).toBe(false);
+    expect(out.ledger.find((h) => h.wallet === "stranger2")?.labeled).toBe(true);
+    expect(out.ledger.find((h) => h.wallet === "stranger2")?.via).toBe("mint");
+    expect(out.events[0]?.id).toBe("burn:live");
+    expect(out.events.some((e) => e.id === "burn:hint")).toBe(true);
   });
 });
 
@@ -162,8 +169,12 @@ describe("namedLaunchForWallet", () => {
 });
 
 describe("ledgerForMint", () => {
-  it("matches mint or launch wallet", () => {
-    const ledger = [hit({ signature: "a", mint: "m1" }), hit({ signature: "b", mint: undefined, wallet: "w1" })];
-    expect(ledgerForMint(ledger, "m1", "w1").map((h) => h.signature)).toEqual(["a", "b"]);
+  it("matches mint, launch wallet, or an ambiguous candidate", () => {
+    const ledger = [
+      hit({ signature: "a", mint: "m1" }),
+      hit({ signature: "b", mint: undefined, wallet: "w1" }),
+      hit({ signature: "c", mint: undefined, wallet: "stranger", labeled: false, candidates: ["m1", "m2"] }),
+    ];
+    expect(ledgerForMint(ledger, "m1", "w1").map((h) => h.signature)).toEqual(["a", "b", "c"]);
   });
 });

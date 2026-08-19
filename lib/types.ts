@@ -1,5 +1,9 @@
 export const ANSEM_MINT = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
 export const ANSEM_DECIMALS = 6;
+
+export function isIndexMint(mint: string | null | undefined) {
+  return mint === ANSEM_MINT;
+}
 export const BURN_PAGE_SIZE = 40;
 export const BURN_MAX_PAGES = 12;
 export const BURN_MAX_PAGES_PAID = 80;
@@ -7,6 +11,8 @@ export const REPORT_HIDE_THRESHOLD = 3;
 export const ADD_RATE_LIMIT = 5;
 export const ADD_RATE_WINDOW_MS = 60 * 60 * 1000;
 export const BOOST_WEIGHT = 250;
+export const AIRDROP_WEIGHT = 0.6;
+export const BURN_USD_WEIGHT = 40;
 export const DEX_HOT_MS = 2 * 60 * 1000;
 export const DEX_STALE_MS = 30 * 60 * 1000;
 export const SCAN_STALE_MS = 10 * 60 * 1000;
@@ -63,7 +69,7 @@ export type Flag = {
   severity: FlagSeverity;
 };
 
-export type TapeKind = "burn" | "launch" | "migrate" | "boost";
+export type TapeKind = "burn" | "launch" | "migrate" | "boost" | "flag" | "rank";
 
 export type TapeEvent = {
   id: string;
@@ -73,8 +79,32 @@ export type TapeEvent = {
   name: string;
   ticker?: string;
   slug?: string;
+  wallet?: string;
   amount?: number;
   label: string;
+};
+
+export const ISSUED_FLAG_TYPES = ["serial"] as const;
+export type IssuedFlagType = (typeof ISSUED_FLAG_TYPES)[number];
+
+export const FLAG_OUTCOMES = ["confirmed_rug", "held", "burned_as_claimed"] as const;
+export type FlagOutcome = (typeof FLAG_OUTCOMES)[number];
+
+/** Durable flag row. Survives the 80-row tape. Outcome stays null until a later resolver. */
+export type FlagIssued = {
+  id: string;
+  wallet: string;
+  mint: string;
+  name: string;
+  ticker?: string;
+  slug?: string;
+  flagType: IssuedFlagType;
+  threshold: number;
+  launchCount: number;
+  issuedAt: number;
+  resolutionDueAt: number;
+  outcome: FlagOutcome | null;
+  outcomeResolvedAt: number | null;
 };
 
 export type RankPoint = {
@@ -111,6 +141,7 @@ export type Dossier = {
   createSlot: number | null;
   sameBlockBuys: number;
   sameBlockWallets: number;
+  sameBlockBuyers?: string[];
   sniper: boolean;
 };
 
@@ -149,12 +180,37 @@ export type BurnCache = {
   indexedBy?: "helius" | "rpc";
 };
 
+export type BurnVia = "wallet" | "mint" | "memo" | "amount";
+
+export type AttributedBurn = {
+  signature: string;
+  mint: string;
+  amount: number;
+  via: BurnVia;
+  wallet: string;
+  at: number;
+};
+
 export type LedgerHit = {
   signature: string;
   wallet: string;
   amount: number;
   at: number;
   mint?: string;
+  /** False when we still cannot tell which coin this $ANSEM burn was for. */
+  labeled?: boolean;
+  via?: BurnVia;
+  /** Exact amount matches more than one credited gap. Not assigned. */
+  candidates?: string[];
+};
+
+export type MintBurnIndex = {
+  cursor: string | null;
+  headSig: string | null;
+  exhausted: boolean;
+  scannedAt: number;
+  txChecked: number;
+  txBurned: number;
 };
 
 export type CommunityProject = {
@@ -185,10 +241,15 @@ export type Project = {
   enhancedAt?: string | null;
   status?: string | null;
   airdropTotal?: number | null;
+  txns24h?: number | null;
+  listedVolume24h?: number | null;
+  listedChange24h?: number | null;
   nsfw?: boolean;
   burnAmount: number;
   burnPriceRef: number;
   verifiedBurn: number | null;
+  /** Launch-wallet scan only. verifiedBurn also includes attributed stranger burns. */
+  walletBurned?: number | null;
   verifiedTxChecked: number | null;
   verifiedAt: number | null;
   verifyExhausted?: boolean;
@@ -200,6 +261,8 @@ export type Project = {
   lastUpdated: number | null;
   fetchError?: string | null;
   rankDelta: number;
+  /** Crosscheck rank vs yesterday's daily index (positive = climbed). */
+  dayDelta?: number;
   holderTop10Pct?: number | null;
   insiderPct?: number | null;
   sniper?: boolean;
@@ -220,9 +283,23 @@ export type Project = {
 
 export type BoardStats = {
   coins: number;
+  launched: number | null;
+  airdroppedTokens: number | null;
   airdroppedUsd: number | null;
+  airdroppedUsdNow: number | null;
+  airdroppedCoins: number | null;
+  airdroppedWallets: number | null;
+  airdroppedPricedShare: number | null;
   burnedAnsem: number | null;
   verifiedBurned: number;
+  listedBurned: number;
+  burnVerifiedPct: number | null;
+  ansemCoinsCredited: number;
+  ansemCoinsMatched: number;
+  unlabeledBurned: number;
+  unlabeledHits: number;
+  mintExhausted: boolean;
+  mintTxChecked: number;
   holders: number | null;
   boosted: number;
   flagged: number;
@@ -236,13 +313,28 @@ export type BoardStats = {
   lastBurnAt: number | null;
   webhookAt: number | null;
   coverageLive: boolean;
+  listedAt: number | null;
 };
 
 export const EMPTY_BOARD_STATS: BoardStats = {
   coins: 0,
+  launched: null,
+  airdroppedTokens: null,
   airdroppedUsd: null,
+  airdroppedUsdNow: null,
+  airdroppedCoins: null,
+  airdroppedWallets: null,
+  airdroppedPricedShare: null,
   burnedAnsem: null,
   verifiedBurned: 0,
+  listedBurned: 0,
+  burnVerifiedPct: null,
+  ansemCoinsCredited: 0,
+  ansemCoinsMatched: 0,
+  unlabeledBurned: 0,
+  unlabeledHits: 0,
+  mintExhausted: false,
+  mintTxChecked: 0,
   holders: null,
   boosted: 0,
   flagged: 0,
@@ -256,6 +348,7 @@ export const EMPTY_BOARD_STATS: BoardStats = {
   lastBurnAt: null,
   webhookAt: null,
   coverageLive: false,
+  listedAt: null,
 };
 
 export type BoardResponse = {
@@ -292,6 +385,11 @@ export type Store = {
   dossiers: Record<string, Dossier>;
   indexDays: IndexDay[];
   burnLedger: LedgerHit[];
+  burnHits: Record<string, LedgerHit>;
+  mintBurnIndex: MintBurnIndex;
+  attributedBurns: Record<string, AttributedBurn>;
+  projectBurns: Record<string, { amount: number; burners: number }>;
+  flagsIssued: FlagIssued[];
   webhookAt: number | null;
   scanLockUntil?: number;
 };

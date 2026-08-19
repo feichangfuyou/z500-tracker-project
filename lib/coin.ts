@@ -2,16 +2,19 @@ import { cache } from "react";
 import { bannerUrlFrom, enhancedAtFrom, fetchAnsemCoin } from "@/lib/ansem";
 import { buildBoard } from "@/lib/board";
 import { ledgerForMint } from "@/lib/burn-ledger";
+import { hitsLedger } from "@/lib/burn-index";
+import { flagsForMint } from "@/lib/flag-ledger";
 import { projectFlags } from "@/lib/flags";
 import { readStore } from "@/lib/store";
 import { seriesForMint } from "@/lib/tape";
-import type { Dossier, LedgerHit, Project, RankPoint, TapeEvent } from "@/lib/types";
+import type { Dossier, FlagIssued, LedgerHit, Project, RankPoint, TapeEvent } from "@/lib/types";
 
 export type CoinPayload = {
   project: Project;
   history: RankPoint[];
   tape: TapeEvent[];
   burns: LedgerHit[];
+  flags: FlagIssued[];
   scores: { mint: string; score: number }[];
   ansemPrice: number | null;
   dossier: Dossier | null;
@@ -42,6 +45,7 @@ export const loadCoin = cache(async (mint: string): Promise<CoinPayload | null> 
           createSlot: null,
           sameBlockBuys: 0,
           sameBlockWallets: 0,
+          sameBlockBuyers: [],
           sniper: Boolean(holders.sniper),
         }
       : null;
@@ -53,7 +57,8 @@ export const loadCoin = cache(async (mint: string): Promise<CoinPayload | null> 
     project,
     history: seriesForMint(store.rankHistory || [], mint),
     tape: (store.tape || []).filter((e) => e.mint === mint),
-    burns: ledgerForMint(store.burnLedger, mint, project.launchWallet),
+    burns: ledgerForMint(hitsLedger(store.burnHits, store.burnLedger), mint, project.launchWallet),
+    flags: flagsForMint(store.flagsIssued, mint),
     scores: board.projects.map((p) => ({ mint: p.mint, score: p.score })),
     ansemPrice: board.ansemPrice,
     dossier: withHolders,

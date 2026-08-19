@@ -1,11 +1,16 @@
-import { activeBoost, creditedBurn, fetchAnsemBoosts, fetchAnsemCoins, fetchAnsemMarket, fetchAnsemProjectBurns, imageUrlFrom, mapTier, type AnsemBoost, type AnsemCoin } from "./ansem";
+import { activeBoost, creditedBurn, fetchAnsemBoosts, fetchAnsemCoinsFeed, fetchAnsemMarket, fetchAnsemProjectBurns, imageUrlFrom, mapTier, mergeProjectBurns, type AnsemBoost, type AnsemCoin } from "./ansem";
 import { alertContext, tapeForAlerts } from "./alert-filter";
-import { ingestWalletScan, namedLaunchForWallet } from "./burn-ledger";
+import { ingestWalletScan, ingestWebhookHits, namedLaunchForMint, namedLaunchForWallet, tapeFromFresh } from "./burn-ledger";
+import { EMPTY_MINT_INDEX, hitsLedger, ledgerFromHits, pruneBurnHits, pullMintBurns, seedBurnHits, upsertBurnHits } from "./burn-index";
+import { attributeStrangerBurns } from "./burn-attr";
 import { fetchDexBatch, overlayDex } from "./dex";
 import { enrichBudget, nextEnrichMints } from "./enrich";
+import { issueFlags } from "./flag-ledger";
+import { outcomeHints, resolveDueFlags } from "./flag-resolve";
+import { WEBHOOK_LIVE_MS } from "./coverage";
 import { heliusApiKey } from "./helius";
 import { isPaidTier } from "./paid-radar";
-import { buildIndexDay, pushIndexDay } from "./index-day";
+import { buildIndexDay, previousIndexDay, pushIndexDay } from "./index-day";
 import { notifyTape } from "./notify";
 import { provenanceCacheForEnrich, resolveProvenance } from "./provenance";
 import { airdropMcapUsd, computeScore, officialScore, publicBurn, ranksFromOrder } from "./score";
@@ -14,8 +19,10 @@ import { fetchHolderRadar, fetchOnchainBurns } from "./solana";
 import { readStore, withStore } from "./store";
 import {
   detectBoostEvents,
+  detectDayRankMoves,
   detectLaunches,
   detectMigrations,
+  detectSerialFlags,
   pushHistory,
   pushTape,
   snapshotStatuses,
@@ -43,12 +50,16 @@ export async function runScanPass(opts?: { maxMs?: number }) {
     };
   }
   let coins: AnsemCoin[] = [];
+  let liveList = false;
   try {
-    coins = await fetchAnsemCoins();
+    const feed = await fetchAnsemCoinsFeed();
+    coins = feed.coins;
+    liveList = feed.live && feed.coins.length > 0;
   } catch {
-    coins = (store.coinSnapshot.coins || []) as AnsemCoin[];
+    coins = [];
   }
-  const visible = coins.filter((c) => !c.nsfw && c.mint !== ANSEM_MINT);
+  if (!coins.length) coins = (store.coinSnapshot.coins || []) as AnsemCoin[];
+  const visible = coins.filter((c) => c.mint && c.mint !== ANSEM_MINT);
   const now = Date.now();
   const targets = [
     ...visible
@@ -88,13 +99,58 @@ export async function runScanPass(opts?: { maxMs?: number }) {
     burst,
   );
   const burns: Record<string, BurnCache> = { ...store.burns };
-  let ledger = store.burnLedger || [];
+  let burnHits = seedBurnHits(store.burnHits, store.burnLedger);
+  let ledger = ledgerFromHits(burnHits);
+  let mintBurnIndex = store.mintBurnIndex || EMPTY_MINT_INDEX;
   let scanned = 0;
   let errors = 0;
   let lastWallet = store.scanCursor.lastWallet;
   let freshTape: TapeEvent[] = [];
   const stopAt = Date.now() + (opts?.maxMs ?? SCAN_PASS_MS);
   const paceMs = heliusPaceMs(catchup ? 1 : 0);
+
+  const knownStart = new Set<string>();
+  for (const coin of visible) {
+    if (coin.creatorWallet) knownStart.add(coin.creatorWallet);
+  }
+  for (const row of store.community) {
+    if (row.launchWallet) knownStart.add(row.launchWallet);
+  }
+  for (const wallet of Object.keys(burns)) knownStart.add(wallet);
+
+  if (heliusApiKey() && Date.now() < stopAt - 12_000) {
+    try {
+      const mint = await pullMintBurns({
+        index: mintBurnIndex,
+        tracked: new Set(visible.map((c) => c.mint)),
+        coins: visible,
+        now,
+        maxPages: burst ? 1 : catchup ? 2 : 3,
+        deadline: Date.now() + (burst ? 8_000 : catchup ? 20_000 : 30_000),
+        live: Boolean(store.webhookAt && now - store.webhookAt < WEBHOOK_LIVE_MS),
+      });
+      if (mint) {
+        mintBurnIndex = mint.index;
+        const ingested = ingestWebhookHits({
+          hits: mint.hits,
+          burns,
+          ledger,
+          tape: freshTape,
+          knownWallets: knownStart,
+          namedFor: (wallet) => namedLaunchForWallet(wallet, visible, store.community),
+          namedForMint: (mintAddr) => namedLaunchForMint(mintAddr, visible, store.community),
+          seenSignatures: Object.keys(burnHits),
+        });
+        Object.assign(burns, ingested.burns);
+        burnHits = upsertBurnHits(burnHits, ingested.fresh).hits;
+        ledger = ledgerFromHits(burnHits);
+        freshTape = ingested.tape;
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message.replace(/api-key=[^&\s]+/gi, "api-key=[redacted]") : "mint index failed";
+      console.error("mint burn index failed", msg);
+    }
+  }
 
   for (const t of batch) {
     if (Date.now() >= stopAt) break;
@@ -110,7 +166,7 @@ export async function runScanPass(opts?: { maxMs?: number }) {
         reindex: reindexPaid,
         paceMs,
         maxPages: burst && firstTouch ? 2 : undefined,
-        deadlineMs: catchup ? (firstTouch ? 2_000 : 5_000) : undefined,
+        deadlineMs: !burst && isPaidTier(t.tier) && !cached?.exhausted ? 18_000 : catchup ? (firstTouch ? 3_000 : 8_000) : undefined,
       });
       if (!scan.indexedBy && scan.txChecked === 0) {
         errors += 1;
@@ -126,16 +182,20 @@ export async function runScanPass(opts?: { maxMs?: number }) {
         ledger,
         tape: freshTape,
         named,
+        seenSignatures: Object.keys(burnHits),
       });
       Object.assign(burns, ingested.burns);
-      ledger = ingested.ledger;
+      burnHits = upsertBurnHits(burnHits, ingested.fresh).hits;
+      ledger = ledgerFromHits(burnHits);
       freshTape = ingested.tape;
       scanned += 1;
       lastWallet = t.wallet;
       if (burst && scanned % 25 === 0) {
         await withStore((s) => {
           s.burns = { ...s.burns, ...burns };
+          s.burnHits = burnHits;
           s.burnLedger = ledger;
+          s.mintBurnIndex = mintBurnIndex;
         });
       }
     } catch (err) {
@@ -153,6 +213,19 @@ export async function runScanPass(opts?: { maxMs?: number }) {
     slug: c.slug,
   }));
   freshTape.push(...detectLaunches(store.seenMints, namedCoins, now));
+  freshTape.push(
+    ...detectSerialFlags(
+      store.seenMints,
+      visible.map((c) => ({
+        mint: c.mint,
+        name: c.name,
+        ticker: c.ticker,
+        slug: c.slug,
+        wallet: c.creatorWallet || null,
+      })),
+      now,
+    ),
+  );
   freshTape.push(...detectMigrations(store.mintStatus, namedCoins, now));
 
   const staleDex = burst || catchup
@@ -175,11 +248,12 @@ export async function runScanPass(opts?: { maxMs?: number }) {
     }
   }
 
-  const [boosts, market, projectBurns] = await Promise.all([
+  const [boosts, market, liveBurns] = await Promise.all([
     fetchAnsemBoosts().catch(() => ({} as Record<string, AnsemBoost>)),
     fetchAnsemMarket().catch(() => null),
     fetchAnsemProjectBurns().catch(() => ({}) as Record<string, { amount: number; burners: number }>),
   ]);
+  const projectBurns = mergeProjectBurns(liveBurns, store.projectBurns);
   const boostTape = detectBoostEvents(store.boostSeen || {}, namedCoins, boosts, now);
   freshTape.push(...boostTape.events);
   const ansemPrice = market?.priceUsd || 0;
@@ -221,6 +295,22 @@ export async function runScanPass(opts?: { maxMs?: number }) {
     };
   });
   const ranked = [...scored].sort((a, b) => b.score - a.score);
+  freshTape.push(
+    ...detectDayRankMoves(
+      previousIndexDay(store.indexDays, now),
+      ranked.map((r, i) => {
+        const coin = visible.find((c) => c.mint === r.mint);
+        return {
+          mint: r.mint,
+          rank: i + 1,
+          name: coin?.name || r.mint,
+          ticker: coin?.ticker,
+          slug: coin?.slug,
+        };
+      }),
+      now,
+    ),
+  );
   const indexMcap = coins.find((c) => c.mint === ANSEM_MINT)?.marketCapUsd || 0;
   const officialOrder = [
     ...scored,
@@ -261,6 +351,7 @@ export async function runScanPass(opts?: { maxMs?: number }) {
         createSlot: resolved.createSlot,
         sameBlockBuys: resolved.bundle.sameBlockBuys,
         sameBlockWallets: resolved.bundle.sameBlockWallets,
+        sameBlockBuyers: resolved.bundle.sameBlockBuyers,
         sniper: resolved.bundle.sniper || prev?.sniper || false,
       };
       if (resolved.bundle.sniper && holders[mint]) {
@@ -294,6 +385,7 @@ export async function runScanPass(opts?: { maxMs?: number }) {
           createSlot: prev?.createSlot ?? null,
           sameBlockBuys: prev?.sameBlockBuys ?? 0,
           sameBlockWallets: prev?.sameBlockWallets ?? 0,
+          sameBlockBuyers: prev?.sameBlockBuyers,
           sniper,
         };
       }
@@ -351,11 +443,49 @@ export async function runScanPass(opts?: { maxMs?: number }) {
     };
     s.rankSnapshot = rankSnap;
     s.rankHistory = pushHistory(s.rankHistory || [], rankSnap);
+    const known = new Set<string>();
+    for (const coin of visible) {
+      if (coin.creatorWallet) known.add(coin.creatorWallet);
+    }
+    for (const row of s.community) {
+      if (row.launchWallet) known.add(row.launchWallet);
+    }
+    for (const wallet of Object.keys(s.burns || {})) known.add(wallet);
+    const attr = attributeStrangerBurns({
+      ledger: hitsLedger(burnHits, ledger),
+      attributed: s.attributedBurns || {},
+      coins: visible,
+      burns: s.burns,
+      knownWallets: known,
+      projectBurns,
+    });
+    if (attr.assigned.length) {
+      freshTape.push(
+        ...attr.assigned.flatMap((hit) => {
+          const named = hit.mint ? namedLaunchForMint(hit.mint, visible, s.community) : null;
+          return tapeFromFresh(
+            [hit],
+            named || { mint: hit.mint || hit.wallet, name: hit.mint || "Unknown" },
+            finishedAt,
+          );
+        }),
+      );
+    }
+    burnHits = pruneBurnHits(Object.fromEntries(attr.ledger.filter((h) => h.signature).map((h) => [h.signature, h])));
+    s.attributedBurns = attr.attributed;
+    if (Object.keys(projectBurns).length) s.projectBurns = projectBurns;
+    s.flagsIssued = resolveDueFlags(
+      issueFlags(s.flagsIssued, [...freshTape, ...(s.tape || [])], finishedAt),
+      outcomeHints(visible, dex),
+      finishedAt,
+    );
     s.tape = pushTape(s.tape || [], freshTape);
-    s.burnLedger = ledger;
+    s.burnHits = burnHits;
+    s.burnLedger = ledgerFromHits(burnHits);
+    s.mintBurnIndex = mintBurnIndex;
     s.seenMints = namedCoins.map((c) => c.mint);
     s.mintStatus = snapshotStatuses(namedCoins);
-    if (coins.length) s.coinSnapshot = { at: finishedAt, coins };
+    if (liveList && coins.length) s.coinSnapshot = { at: finishedAt, coins };
   });
 
   if (freshTape.length) {

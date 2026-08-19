@@ -11,7 +11,7 @@ import { ScrambleText } from "@/components/scramble-text";
 import { useBoardPoll } from "@/components/use-board-poll";
 import { cn } from "@/lib/cn";
 import { launchStatusLabel } from "@/lib/format";
-import { indexFromProjects, overlayLiveIndex, utcDayLabel } from "@/lib/index-day";
+import { indexFromProjects, overlayLiveIndex, dayRankDelta, utcDayLabel } from "@/lib/index-day";
 import type { BoardResponse, IndexDay } from "@/lib/types";
 
 export function IndexBasket({
@@ -29,6 +29,7 @@ export function IndexBasket({
   }, []);
   useBoardPoll(onBoard);
   const latest = overlayLiveIndex(snapshot, live ? { ...live, at: snapshot.at } : live);
+  const previous = days.find((day) => day.at < snapshot.at) || null;
 
   return (
     <>
@@ -52,12 +53,18 @@ export function IndexBasket({
       <ol className="mt-4 divide-y divide-border border-t border-border">
         {latest.coins.map((c, i) => {
           const status = launchStatusLabel(c.status);
+          const delta = dayRankDelta(i + 1, previous, c.mint);
           return (
             <li key={c.mint} className="py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <span className="w-6 shrink-0 font-mono text-[11px] tabular-nums text-dim">
+                  <span className="inline-flex min-w-6 shrink-0 items-baseline gap-1 font-mono text-[11px] tabular-nums text-dim">
                     <LiveNum value={i + 1} format="int" flash={false} />
+                    {delta ? (
+                      <span className={delta > 0 ? "text-good" : "text-bad"}>
+                        {delta > 0 ? `+${delta}` : delta}
+                      </span>
+                    ) : null}
                   </span>
                   <Link href={`/c/${c.mint}`} aria-hidden tabIndex={-1} className="shrink-0">
                     <CoinThumb src={c.imageUrl} label={c.ticker || c.name} />
@@ -77,7 +84,7 @@ export function IndexBasket({
                 {(c.flags || []).length > 0 ? <FlagChips flags={c.flags || []} compact /> : null}
               </div>
               <MiniStatGrid>
-                <MiniStat k="Score" v={<LiveNum value={c.score} format="usd" />} />
+                <MiniStat k="Score" v={<LiveNum value={c.score} format="compact" />} />
                 <MiniStat k="Listed" v={<LiveNum value={c.officialRank} format="rank" />} />
                 <MiniStat k="Airdrop" v={<LiveNum value={c.airdropMcap} format="usd" />} />
                 <MiniStat k="Burned" v={<LiveNum value={c.burned} format="compact" />} />

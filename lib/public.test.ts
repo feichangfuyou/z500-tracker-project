@@ -27,12 +27,19 @@ describe("publicCoin", () => {
     expect(coin.mint).toContain("Mint");
     expect(coin.ticker).toBe("A");
     expect(coin.burned).toBe(9);
+    expect(coin.listedBurned).toBeNull();
+    expect(coin.independentlyBurned).toBe(9);
+    expect(coin.walletBurned).toBe(9);
+    expect(coin.walletScanComplete).toBe(false);
     expect(coin.provenance).toBe("matched");
     expect(coin.ansemUrl).toContain("/coin/alpha");
     expect(coin.launchCount).toBe(0);
     expect(coin.listedRank).toBe(3);
-    expect(coin.scoreKind).toBe("proxy");
+    expect(coin.scoreKind).toBe("crosscheck-v1");
+    expect(coin.scoreFormula).toContain("0.6");
+    expect(coin.scoreParts?.boosts).toBe(500);
     expect(coin.rankBasis).toBe("z500-mcap");
+    expect(coin.nsfw).toBe(false);
     expect(coin.burnedComplete).toBe(false);
     expect(coin.bannerUrl).toBe("https://ansem.io/api/banners/abc");
     expect(coin.enhancedAt).toBe("2026-08-18T13:57:56.400Z");
@@ -51,12 +58,18 @@ describe("publicCoin", () => {
       live: null,
       verifiedBurn: 0,
       listedBurn: 370_566,
+      listedBurners: 4,
       verifyExhausted: true,
       flags: [],
       launchWallet: "Wallet1111111111111111111111111111111111111",
     } as unknown as Project);
     expect(coin.burned).toBe(370_566);
-    expect(coin.burnedComplete).toBe(true);
+    expect(coin.listedBurned).toBe(370_566);
+    expect(coin.independentlyBurned).toBe(0);
+    expect(coin.walletBurned).toBe(0);
+    expect(coin.burnedComplete).toBe(false);
+    expect(coin.burnCoverageStatus).toBe("unlabeled");
+    expect(coin.walletScanComplete).toBe(true);
   });
 
   it("publishes 0 credited burns when z500 has none for the coin", () => {
@@ -145,7 +158,7 @@ describe("publicCoin", () => {
     expect(row?.live?.marketCap).toBe(100);
     expect(row?.live && "fdv" in row.live).toBe(false);
     expect(row && "bannerUrl" in row).toBe(false);
-    expect(JSON.stringify(slim).length).toBeLessThan(1200);
+    expect(JSON.stringify(slim).length).toBeLessThan(1600);
   });
 
   it("omits images on lite polls", () => {

@@ -1,4 +1,7 @@
 import { publicImageUrl } from "./media";
+import { mapAnsemStats, type AnsemStatsJson } from "./ansem-stats";
+
+export { EMPTY_ANSEM_STATS, listedAirdropCaption, mapAnsemStats, type AnsemStats } from "./ansem-stats";
 
 const ANSEM = "https://ansem.io";
 
@@ -18,6 +21,7 @@ export type AnsemCoin = {
   volume24hUsd?: number | null;
   change24hPct?: number | null;
   airdropTotal?: number | null;
+  txns24h?: number | null;
   pairAddress?: string | null;
   createdAt?: string | null;
   nsfw?: boolean;
@@ -84,11 +88,45 @@ export function mapTier(raw: string | null | undefined) {
   return "Free";
 }
 
-export async function fetchAnsemCoins() {
-  return cached("coins", 20_000, async () => {
+export type AnsemCoinsFeed = {
+  coins: AnsemCoin[];
+  live: boolean;
+  at: number;
+};
+
+export function resolveListedCoins(
+  live: AnsemCoin[] | null | undefined,
+  snapshot: { coins?: unknown[]; at?: number } | null | undefined,
+  now = Date.now(),
+): { coins: AnsemCoin[]; source: "ansem" | "cache" | "empty"; listedAt: number | null } {
+  if (live?.length) return { coins: live, source: "ansem", listedAt: now };
+  const snap = (snapshot?.coins || []) as AnsemCoin[];
+  if (snap.length) return { coins: snap, source: "cache", listedAt: snapshot?.at || null };
+  return { coins: [], source: "empty", listedAt: null };
+}
+
+export async function fetchAnsemCoinsFeed(): Promise<AnsemCoinsFeed> {
+  const hit = ttl.get("coins") as Cache<AnsemCoin[]> | undefined;
+  if (hit?.value.length && Date.now() - hit.at < 20_000) {
+    return { coins: hit.value, live: true, at: hit.at };
+  }
+  try {
     const json = await getJson<{ coins: AnsemCoin[]; total?: number }>("/api/coins");
-    return json.coins || [];
-  });
+    const coins = json.coins || [];
+    if (coins.length) {
+      ttl.set("coins", { at: Date.now(), value: coins });
+      return { coins, live: true, at: Date.now() };
+    }
+    if (hit?.value.length) return { coins: hit.value, live: false, at: hit.at };
+    return { coins: [], live: false, at: 0 };
+  } catch {
+    if (hit?.value.length) return { coins: hit.value, live: false, at: hit.at };
+    throw new Error("ansem /api/coins down");
+  }
+}
+
+export async function fetchAnsemCoins() {
+  return (await fetchAnsemCoinsFeed()).coins;
 }
 
 export async function fetchAnsemCoin(slug: string): Promise<AnsemCoinDetail | null> {
@@ -128,19 +166,7 @@ export async function fetchAnsemMarket() {
 }
 
 export async function fetchAnsemStats() {
-  return cached("stats", 30_000, async () => {
-    const json = await getJson<{
-      airdropped?: { usdNow?: number; coins?: number };
-      holders?: { count?: number };
-      burned?: { total?: number };
-    }>("/api/stats");
-    return {
-      coins: json.airdropped?.coins ?? null,
-      airdroppedUsd: json.airdropped?.usdNow ?? null,
-      burnedAnsem: json.burned?.total ?? null,
-      holders: json.holders?.count ?? null,
-    };
-  });
+  return cached("stats", 30_000, async () => mapAnsemStats(await getJson<AnsemStatsJson>("/api/stats")));
 }
 
 export type AnsemBoost = {
@@ -181,7 +207,19 @@ export function projectBurnsByMint(
   return out;
 }
 
+/** Live ansem.io credits win; if that feed is empty we keep the last good snapshot. */
+export function mergeProjectBurns(
+  live: Record<string, { amount: number; burners: number }>,
+  cached?: Record<string, { amount: number; burners: number }>,
+) {
+  if (Object.keys(live).length) return live;
+  if (cached && Object.keys(cached).length) return cached;
+  return live;
+}
+
 type ProjectBurnRow = { mint?: string; amount?: number; burners?: number };
+
+let lastGoodProjectBurns: Record<string, { amount: number; burners: number }> = {};
 
 async function fetchProjectBurnRows(): Promise<ProjectBurnRow[]> {
   try {
@@ -213,7 +251,18 @@ async function fetchProjectBurnRows(): Promise<ProjectBurnRow[]> {
 }
 
 export async function fetchAnsemProjectBurns() {
-  return cached("project-burns", 25_000, async () => projectBurnsByMint(await fetchProjectBurnRows()));
+  return cached("project-burns", 25_000, async () => {
+    try {
+      const next = projectBurnsByMint(await fetchProjectBurnRows());
+      if (Object.keys(next).length) {
+        lastGoodProjectBurns = next;
+        return next;
+      }
+    } catch {
+      /* keep the last good snapshot so listed burns do not flip to 0 */
+    }
+    return lastGoodProjectBurns;
+  });
 }
 
 export async function fetchAnsemBoosts() {

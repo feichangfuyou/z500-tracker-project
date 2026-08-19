@@ -1,25 +1,30 @@
 import { cache } from "react";
 import {
   fetchAnsemBoosts,
-  fetchAnsemCoins,
+  fetchAnsemCoinsFeed,
   fetchAnsemMarket,
   fetchAnsemProjectBurns,
   creditedBurn,
   fetchAnsemStats,
+  EMPTY_ANSEM_STATS,
   fetchDexFallbackCoins,
   fetchPumpFallbackCoins,
   mapTier,
   activeBoost,
   bannerUrlFrom,
   imageUrlFrom,
+  mergeProjectBurns,
+  resolveListedCoins,
   type AnsemBoost,
   type AnsemCoin,
 } from "./ansem";
-import { coverageMeter, isListedFeed, uniqueVerifiedBurns } from "./coverage";
+import { burnVerifiedPct, coverageMeter, isListedFeed, listedBurnTotal, uniqueVerifiedBurns, ansemAccuracy } from "./coverage";
+import { extraBurnForMint, extraBurnTotal, independentBurn } from "./burn-attr";
 import { fetchDexBatch, overlayDex, type DexLive } from "./dex";
+import { dayRankDelta, previousIndexDay } from "./index-day";
 import { airdropMcapUsd, computeScore, officialDelta, officialScore, ranksFromOrder } from "./score";
-import { readStore } from "./store";
-import { ANSEM_MINT, DEX_HOT_MS, type BoardResponse, type DexCache, type Project, type RankSnapshot } from "./types";
+import { readStore, withStore } from "./store";
+import { DEX_HOT_MS, isIndexMint, type BoardResponse, type DexCache, type Project, type RankSnapshot } from "./types";
 import { projectFlags } from "./flags";
 import { notifyChannels } from "./notify";
 import { provenanceFromStore } from "./provenance";
@@ -29,6 +34,21 @@ type BoardPayload = Omit<BoardResponse, "sid">;
 
 const BOARD_FRESH_MS = 8_000;
 const BOARD_STALE_MS = 20_000;
+const SNAPSHOT_WRITE_MS = 2 * 60 * 1000;
+
+function rememberListedSnapshot(coins: AnsemCoin[], now: number, prevAt: number) {
+  if (!coins.length || (prevAt > 0 && now - prevAt < SNAPSHOT_WRITE_MS)) return;
+  void withStore((s) => {
+    s.coinSnapshot = { at: now, coins };
+  }).catch(() => undefined);
+}
+
+function rememberProjectBurns(projectBurns: Record<string, { amount: number; burners: number }>) {
+  if (!Object.keys(projectBurns).length) return;
+  void withStore((s) => {
+    s.projectBurns = projectBurns;
+  }).catch(() => undefined);
+}
 
 type BoardMemo = {
   at: number;
@@ -77,10 +97,11 @@ export function applyRanks(
   indexMcap = 0,
 ): Project[] {
   const ansem = listedFeed ? projects.filter((p) => p.source === "ansem") : [];
+  const hasIndexRow = ansem.some((p) => isIndexMint(p.mint));
   const official = ranksFromOrder(
     [
       ...ansem.map((p) => ({ id: p.id, name: p.name, mcap: officialScore(p) })),
-      ...(indexMcap > 0 ? [{ id: "__z500_index__", name: "\0", mcap: indexMcap }] : []),
+      ...(indexMcap > 0 && !hasIndexRow ? [{ id: "__z500_index__", name: "\0", mcap: indexMcap }] : []),
     ]
       .sort((a, b) => b.mcap - a.mcap || a.name.localeCompare(b.name))
       .map((p) => p.id),
@@ -94,12 +115,18 @@ export function applyRanks(
     const rank = boardRank[p.id] || 0;
     const officialRank = listedFeed && p.source === "ansem" ? official[p.id] ?? null : null;
     const vsOfficial = listedFeed && p.source === "ansem" ? crosscheckAnsem[p.id] || 0 : 0;
-    const prev = snapshot.ranks[p.mint];
+    const prevListed = snapshot.official?.[p.mint];
+    const prevScore = snapshot.ranks[p.mint];
     return {
       ...p,
       officialRank,
       officialDelta: officialDelta(officialRank, vsOfficial),
-      rankDelta: prev ? prev - rank : 0,
+      rankDelta:
+        listedFeed && officialRank != null && prevListed
+          ? prevListed - officialRank
+          : !listedFeed && prevScore
+            ? prevScore - rank
+            : 0,
     };
   });
 }
@@ -126,27 +153,30 @@ async function assembleBoard(): Promise<BoardPayload> {
   const storeP = readStore();
   const extrasP = Promise.all([
     fetchAnsemMarket().catch(() => null),
-    fetchAnsemStats().catch(() => ({
-      coins: null,
-      airdroppedUsd: null,
-      burnedAnsem: null,
-      holders: null,
-    })),
+    fetchAnsemStats().catch(() => EMPTY_ANSEM_STATS),
     fetchAnsemBoosts().catch(() => ({} as Record<string, AnsemBoost>)),
   ]);
-  let feedSource: BoardResponse["feedSource"] = "ansem";
-  let coins: AnsemCoin[] = [];
-  try {
-    coins = await fetchAnsemCoins();
-  } catch {
-    coins = [];
-  }
   const store = await storeP;
-  if (!coins.length && store.coinSnapshot.coins.length) {
-    coins = store.coinSnapshot.coins as AnsemCoin[];
-    feedSource = "cache";
+  const now = Date.now();
+  let live: AnsemCoin[] | null = null;
+  let memory: { coins: AnsemCoin[]; at: number } | null = null;
+  try {
+    const feed = await fetchAnsemCoinsFeed();
+    if (feed.live && feed.coins.length) live = feed.coins;
+    else if (feed.coins.length) memory = { coins: feed.coins, at: feed.at };
+  } catch {
+    live = null;
   }
-  if (!coins.length) {
+  const snap = memory ?? {
+    coins: store.coinSnapshot.coins as AnsemCoin[],
+    at: store.coinSnapshot.at,
+  };
+  const listed = resolveListedCoins(live, snap, now);
+  let coins = listed.coins;
+  let feedSource: BoardResponse["feedSource"] = listed.source === "cache" ? "cache" : "ansem";
+  if (listed.source === "ansem") {
+    rememberListedSnapshot(coins, now, store.coinSnapshot.at);
+  } else if (listed.source === "empty") {
     coins = await fetchPumpFallbackCoins().catch(() => []);
     if (coins.length) feedSource = "pump";
   }
@@ -154,17 +184,20 @@ async function assembleBoard(): Promise<BoardPayload> {
     coins = await fetchDexFallbackCoins().catch(() => []);
     if (coins.length) feedSource = "dex";
   }
+  const listedAt = listed.source === "empty" ? null : listed.listedAt;
 
-  const now = Date.now();
   const [market, stats, boosts] = await extrasP;
-  const projectBurns = await fetchAnsemProjectBurns().catch((err) => {
+  const liveBurns = await fetchAnsemProjectBurns().catch((err) => {
     console.error("ansem project-burns", err);
     return {} as Record<string, { amount: number; burners: number }>;
   });
+  const projectBurns = mergeProjectBurns(liveBurns, store.projectBurns);
   if (!Object.keys(projectBurns).length) console.error("ansem project-burns empty");
+  else rememberProjectBurns(projectBurns);
 
-  const indexMcap = coins.find((c) => c.mint === ANSEM_MINT)?.marketCapUsd || 0;
-  const visible = coins.filter((c) => !c.nsfw && c.mint !== ANSEM_MINT);
+  const launched = coins.length || null;
+  const indexMcap = coins.find((c) => isIndexMint(c.mint))?.marketCapUsd || 0;
+  const visible = coins.filter((c) => Boolean(c.mint));
   const hotMints = [...visible]
     .sort(
       (a, b) =>
@@ -214,10 +247,14 @@ async function assembleBoard(): Promise<BoardPayload> {
         enhancedAt: c.enhancedAt || null,
         status: c.status || null,
         airdropTotal: c.airdropTotal ?? null,
-        nsfw: false,
+        txns24h: c.txns24h ?? null,
+        listedVolume24h: c.volume24hUsd ?? null,
+        listedChange24h: c.change24hPct ?? null,
+        nsfw: Boolean(c.nsfw),
         burnAmount: 0,
         burnPriceRef: market?.priceUsd || 0,
-        verifiedBurn: burn?.verifiedBurn ?? null,
+        walletBurned: burn?.verifiedBurn ?? null,
+        verifiedBurn: independentBurn(burn?.verifiedBurn, extraBurnForMint(store.attributedBurns, c.mint)),
         verifiedTxChecked: burn?.txChecked ?? null,
         verifiedAt: burn?.scannedAt ?? null,
         verifyExhausted: burn?.exhausted,
@@ -228,6 +265,7 @@ async function assembleBoard(): Promise<BoardPayload> {
         live,
         lastUpdated: now,
         rankDelta: 0,
+        dayDelta: 0,
         holderTop10Pct: holders?.top10Pct ?? null,
         insiderPct: holders?.insiderPct ?? null,
         sniper: Boolean(holders?.sniper),
@@ -265,7 +303,8 @@ async function assembleBoard(): Promise<BoardPayload> {
         status: null,
         burnAmount: p.burnAmount,
         burnPriceRef: p.burnPriceRef || market?.priceUsd || 0,
-        verifiedBurn: burn?.verifiedBurn ?? null,
+        walletBurned: burn?.verifiedBurn ?? null,
+        verifiedBurn: independentBurn(burn?.verifiedBurn, extraBurnForMint(store.attributedBurns, p.mint)),
         verifiedTxChecked: burn?.txChecked ?? null,
         verifiedAt: burn?.scannedAt ?? null,
         verifyExhausted: burn?.exhausted,
@@ -291,6 +330,7 @@ async function assembleBoard(): Promise<BoardPayload> {
         lastUpdated: now,
         fetchError: error,
         rankDelta: 0,
+        dayDelta: 0,
         holderTop10Pct: holders?.top10Pct ?? null,
         insiderPct: holders?.insiderPct ?? null,
         sniper: Boolean(holders?.sniper),
@@ -322,11 +362,18 @@ async function assembleBoard(): Promise<BoardPayload> {
   }
 
   const ranked = applyRanks(projects, store.rankSnapshot, isListedFeed(feedSource), indexMcap);
+  const yesterday = previousIndexDay(store.indexDays, now);
+  for (let i = 0; i < ranked.length; i += 1) {
+    ranked[i]!.dayDelta = dayRankDelta(i + 1, yesterday, ranked[i]!.mint);
+  }
   const indexed = uniqueVerifiedBurns(store.burns);
+  const listedBurned = listedBurnTotal(ranked);
+  const vsAnsem = ansemAccuracy(ranked);
   const coverage = coverageMeter(ranked, store.burns, {
-    ledger: store.burnLedger,
+    ledger: Object.keys(store.burnHits || {}).length ? Object.values(store.burnHits) : store.burnLedger,
     webhookAt: store.webhookAt,
     now,
+    mintIndex: store.mintBurnIndex,
   });
 
   return {
@@ -335,9 +382,23 @@ async function assembleBoard(): Promise<BoardPayload> {
     solPrice: market?.solUsd ?? null,
     stats: {
       coins: ranked.length,
+      launched,
+      airdroppedTokens: stats.airdroppedTokens,
       airdroppedUsd: stats.airdroppedUsd,
+      airdroppedUsdNow: stats.airdroppedUsdNow,
+      airdroppedCoins: stats.airdroppedCoins,
+      airdroppedWallets: stats.airdroppedWallets,
+      airdroppedPricedShare: stats.airdroppedPricedShare,
       burnedAnsem: stats.burnedAnsem,
-      verifiedBurned: indexed.verifiedBurned,
+      verifiedBurned: indexed.verifiedBurned + extraBurnTotal(store.attributedBurns),
+      listedBurned,
+      burnVerifiedPct: vsAnsem.pct ?? burnVerifiedPct(indexed.verifiedBurned, listedBurned),
+      ansemCoinsCredited: vsAnsem.coins,
+      ansemCoinsMatched: vsAnsem.coinsMatched,
+      unlabeledBurned: coverage.unlabeledBurned,
+      unlabeledHits: coverage.unlabeledHits,
+      mintExhausted: coverage.mintExhausted,
+      mintTxChecked: coverage.mintTxChecked,
       holders: stats.holders,
       boosted: ranked.filter((p) => p.boostPoints > 0).length,
       flagged: ranked.filter((p) => p.flags.some((f) => f.severity === "bad")).length,
@@ -351,6 +412,7 @@ async function assembleBoard(): Promise<BoardPayload> {
       lastBurnAt: coverage.lastBurnAt,
       webhookAt: coverage.webhookAt,
       coverageLive: coverage.coverageLive,
+      listedAt,
     },
     lastSynced: now,
     feedSource,

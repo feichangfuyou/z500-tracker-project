@@ -1,7 +1,9 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, readFileSync, existsSync } from "node:fs";
 import path from "node:path";
-import type { BoostSeen, BurnCache, CommunityProject, DexCache, Dossier, HolderCache, IndexDay, MintStatus, RankSnapshot, ScanCursor, Store, TapeEvent, LedgerHit } from "./types";
+import { parseFlagLedger } from "./flag-ledger";
+import { parseBurnHits, parseMintBurnIndex, pruneBurnHits, seedBurnHits } from "./burn-index";
+import type { AttributedBurn, BoostSeen, BurnCache, CommunityProject, DexCache, Dossier, FlagIssued, HolderCache, IndexDay, LedgerHit, MintBurnIndex, MintStatus, RankSnapshot, ScanCursor, Store, TapeEvent } from "./types";
 
 const DIR = process.env.VERCEL
   ? path.join("/tmp", "crosscheck-data")
@@ -186,6 +188,11 @@ type Extra = {
   dossiers: Record<string, Dossier>;
   indexDays: IndexDay[];
   burnLedger: LedgerHit[];
+  burnHits: Record<string, LedgerHit>;
+  mintBurnIndex: MintBurnIndex;
+  attributedBurns: Record<string, AttributedBurn>;
+  projectBurns: Record<string, { amount: number; burners: number }>;
+  flagsIssued: FlagIssued[];
   webhookAt: number | null;
 };
 
@@ -202,6 +209,11 @@ const emptyExtra = (): Extra => ({
   dossiers: {},
   indexDays: [],
   burnLedger: [],
+  burnHits: {},
+  mintBurnIndex: { cursor: null, headSig: null, exhausted: false, scannedAt: 0, txChecked: 0, txBurned: 0 },
+  attributedBurns: {},
+  projectBurns: {},
+  flagsIssued: [],
   webhookAt: null,
 });
 
@@ -329,6 +341,11 @@ function load(opened: Db): Store {
           dossiers: parsed.dossiers || base.dossiers,
           indexDays: parsed.indexDays || base.indexDays,
           burnLedger: Array.isArray(parsed.burnLedger) ? parsed.burnLedger : base.burnLedger,
+          burnHits: seedBurnHits(parseBurnHits(parsed.burnHits), Array.isArray(parsed.burnLedger) ? parsed.burnLedger : []),
+          mintBurnIndex: parseMintBurnIndex(parsed.mintBurnIndex),
+          attributedBurns: parsed.attributedBurns && typeof parsed.attributedBurns === "object" ? parsed.attributedBurns : base.attributedBurns,
+          projectBurns: parsed.projectBurns && typeof parsed.projectBurns === "object" ? parsed.projectBurns : base.projectBurns,
+          flagsIssued: parseFlagLedger(parsed.flagsIssued),
           webhookAt: typeof parsed.webhookAt === "number" ? parsed.webhookAt : null,
         };
       } catch {
@@ -440,6 +457,11 @@ function persist(opened: Db, store: Store) {
         dossiers: store.dossiers || {},
         indexDays: store.indexDays || [],
         burnLedger: (store.burnLedger || []).slice(0, 300),
+        burnHits: pruneBurnHits(store.burnHits || {}),
+        mintBurnIndex: store.mintBurnIndex || emptyExtra().mintBurnIndex,
+        attributedBurns: store.attributedBurns || {},
+        projectBurns: store.projectBurns || {},
+        flagsIssued: parseFlagLedger(store.flagsIssued),
         webhookAt: store.webhookAt || null,
       }),
     );
@@ -480,6 +502,11 @@ function mergeStore(raw: unknown): Store {
     dossiers: s.dossiers || base.dossiers,
     indexDays: s.indexDays || base.indexDays,
     burnLedger: s.burnLedger || base.burnLedger,
+    burnHits: seedBurnHits(parseBurnHits(s.burnHits), s.burnLedger),
+    mintBurnIndex: parseMintBurnIndex(s.mintBurnIndex),
+    attributedBurns: s.attributedBurns || base.attributedBurns,
+    projectBurns: s.projectBurns || base.projectBurns,
+    flagsIssued: parseFlagLedger(s.flagsIssued),
     webhookAt: s.webhookAt ?? base.webhookAt,
     rev: Number(s.rev) || 0,
   };

@@ -28,6 +28,48 @@ export function fmtCompact(n: number | null | undefined) {
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
+/** ansem.io homepage compact (2.3B tokens, 29.4K wallets). */
+export function fmtHead(n: number | null | undefined) {
+  if (n === null || n === undefined || !Number.isFinite(n)) return "—";
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
+  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  if (abs >= 100) return `${Math.round(n)}`;
+  return `${Number(n.toPrecision(3))}`;
+}
+
+/** z500 airdrop cell: ~425.0M tokens. */
+export function fmtDrop(n: number | null | undefined) {
+  if (n === null || n === undefined || !Number.isFinite(n) || n <= 0) return "—";
+  const abs = Math.abs(n);
+  const body =
+    abs >= 1_000_000_000
+      ? `${(n / 1_000_000_000).toFixed(1)}B`
+      : abs >= 1_000_000
+        ? `${(n / 1_000_000).toFixed(1)}M`
+        : abs >= 1_000
+          ? `${(n / 1_000).toFixed(1)}K`
+          : `${Math.round(n)}`;
+  return `~${body}`;
+}
+
+/** z500 age cell: 47h 22m */
+export function fmtAge(ts: number | null | undefined, now = Date.now()) {
+  if (!ts) return "—";
+  const n = Math.max(0, Math.floor((now - ts) / 60_000));
+  if (n < 60) return `${n}m`;
+  const h = Math.floor(n / 60);
+  if (h < 48) return `${h}h ${n % 60}m`;
+  return `${Math.floor(h / 24)}d ${h % 24}h`;
+}
+
+export function indexStatusLabel(status?: string | null) {
+  if (status === "migrated") return "Migrated";
+  if (status === "on_curve") return "On curve";
+  return launchStatusLabel(status) || "—";
+}
+
 export function fmtPct(n: number | null | undefined) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;

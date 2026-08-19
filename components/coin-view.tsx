@@ -16,6 +16,7 @@ import { RankSparkline } from "@/components/rank-sparkline";
 import { Reveal } from "@/components/reveal";
 import { ScrambleText } from "@/components/scramble-text";
 import { Scorecard } from "@/components/scorecard";
+import { ScoreBreakdown } from "@/components/score-breakdown";
 import { SiteHeader } from "@/components/site-header";
 import { TapeStrip } from "@/components/tape-strip";
 import { TimeAgo } from "@/components/time-ago";
@@ -30,7 +31,9 @@ import { publicImageUrl } from "@/lib/media";
 import { ANSEM_AIRDROP, ansemCoinUrl, solscanAccount, solscanTx, tradeLinks } from "@/lib/links";
 import { projectFlags, provenanceLabel } from "@/lib/flags";
 import { projectRubric } from "@/lib/rubric";
-import { computeScore, publicBurn } from "@/lib/score";
+import { computeScore, publicBurn, scoreParts } from "@/lib/score";
+import { burnCoverage } from "@/lib/coverage";
+import { viaLabel } from "@/lib/burn-attr";
 import { simulateBurn } from "@/lib/sim";
 import type { BoardResponse, Dossier, LedgerHit, Project } from "@/lib/types";
 
@@ -68,6 +71,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
   const [tape, setTape] = useState(initial.tape);
   const [scores, setScores] = useState(initial.scores);
   const [burns, setBurns] = useState(initial.burns || []);
+  const flags = initial.flags || [];
   const [extra, setExtra] = useState("10000");
   const [verifying, setVerifying] = useState(false);
   const [checkingHolders, setCheckingHolders] = useState(false);
@@ -93,6 +97,9 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
         boostPoints: row.boostPoints,
         boostGolden: row.boostGolden,
         verifiedBurn: row.verifiedBurn ?? prev.verifiedBurn,
+        walletBurned: row.walletBurned ?? prev.walletBurned,
+        listedBurn: row.listedBurn ?? prev.listedBurn,
+        listedBurners: row.listedBurners ?? prev.listedBurners,
         listedAirdropMcap: row.listedAirdropMcap,
         listedMarketCap: row.listedMarketCap,
         launchCount: row.launchCount || prev.launchCount,
@@ -178,9 +185,11 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
       const prov = provRes.ok ? await provRes.json() : null;
       if (prov?.dossier) setDossier(prov.dossier);
       setProject((p) => {
+        const extra = Math.max(0, (p.verifiedBurn || 0) - (p.walletBurned ?? 0));
         const next: Project = {
           ...p,
-          verifiedBurn: json.verifiedBurn,
+          walletBurned: json.verifiedBurn,
+          verifiedBurn: (json.verifiedBurn || 0) + extra,
           verifiedTxChecked: json.txChecked,
           verifiedAt: json.scannedAt,
           verifyExhausted: json.exhausted,
@@ -225,6 +234,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
                 createSlot: null,
                 sameBlockBuys: 0,
                 sameBlockWallets: 0,
+                sameBlockBuyers: [],
                 sniper: Boolean(json.sniper),
               },
         );
@@ -250,6 +260,9 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
   const ansem = ansemCoinUrl(p.slug);
   const banner = publicImageUrl(p.bannerUrl);
   const rubric = useMemo(() => projectRubric(p, dossier), [p, dossier]);
+  const parts = useMemo(() => scoreParts({ ...p, burnPriceRef: initial.ansemPrice || p.burnPriceRef }), [p, initial.ansemPrice]);
+  const coverage = useMemo(() => burnCoverage(p), [p]);
+  const serialFlag = flags[0];
 
   return (
     <div className="min-h-dvh bg-bg pb-[calc(2.5rem+env(safe-area-inset-bottom))] text-ink">
@@ -295,6 +308,11 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
                   .filter(Boolean)
                   .join(" · ")}
               </span>
+              {p.nsfw ? (
+                <span className="inline-flex h-[17px] shrink-0 items-center border border-bad/50 px-1 font-mono text-[8.5px] font-semibold uppercase leading-none text-bad">
+                  NSFW
+                </span>
+              ) : null}
               <CoinActs mint={p.mint} enhanced={isEnhanced(p)} onError={(message) => setError(message)} />
             </p>
               <div className="mt-3">
@@ -369,12 +387,13 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
         </Reveal>
 
         <Scorecard rubric={rubric} />
+        <ScoreBreakdown parts={parts} />
 
         <dl className="mt-8 grid grid-cols-2 gap-4 border-t border-border pt-6 sm:grid-cols-4">
+          <Stat k="Listed" v={<LiveNum value={p.officialRank} format={fmtRank} reel />} />
           <Stat k="Mcap" v={<LiveNum value={p.live?.marketCap} format={fmtUsd} reel />} />
           <Stat k="Airdrop" v={<LiveNum value={p.live?.airdropMcap} format={fmtUsd} reel />} />
           <Stat k="Burned" v={<LiveNum value={publicBurn(p)} format={fmtCompact} reel />} />
-          <Stat k="Score" v={<LiveNum value={p.score} format={fmtUsd} reel />} />
           <Stat k="Price" v={<LiveNum value={p.live?.priceUsd} format={fmtPrice} reel />} />
           <Stat
             k="24h"
@@ -382,7 +401,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
             valueClass={(p.live?.change24h || 0) >= 0 ? "text-good" : "text-bad"}
           />
           <Stat k="Liq" v={<LiveNum value={p.live?.liquidity} format={fmtUsd} reel />} />
-          <Stat k="Listed" v={<LiveNum value={p.officialRank} format={fmtRank} reel />} />
+          <Stat k="Score" v={<LiveNum value={p.score} format={fmtCompact} reel />} />
         </dl>
 
         <PriceChart name={p.name} dexUrl={p.live?.dexUrl || tradeLinks(p.mint, p.slug).dex} />
@@ -403,10 +422,33 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
             <h2 className="type-eyebrow">On-chain</h2>
             <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
               <Stat k="Launch" v={<WalletCell wallet={p.launchWallet} />} size="sm" />
-              {p.listedBurn != null && p.listedBurn > 0 && p.verifiedBurn != null && p.verifiedBurn !== p.listedBurn ? (
+              {coverage.pct != null ? (
                 <Stat
-                  k="Wallet burn"
+                  k="Vs ansem.io"
+                  v={
+                    <LiveNum
+                      value={coverage.pct * 100}
+                      format={(n) => (n == null ? "—" : `${Math.round(n)}%`)}
+                    />
+                  }
+                  size="sm"
+                  valueClass={coverage.status === "complete" ? "text-good" : "text-gold-lit"}
+                />
+              ) : null}
+              {p.listedBurn != null && p.listedBurn > 0 ? (
+                <Stat k="ansem.io credits" v={<LiveNum value={p.listedBurn} format={fmtCompact} />} size="sm" />
+              ) : null}
+              {p.verifiedBurn != null ? (
+                <Stat
+                  k="We assigned"
                   v={<LiveNum value={p.verifiedBurn} format={fmtCompact} />}
+                  size="sm"
+                />
+              ) : null}
+              {p.walletBurned != null && p.verifiedBurn != null && p.walletBurned !== p.verifiedBurn ? (
+                <Stat
+                  k="Launch wallet"
+                  v={<LiveNum value={p.walletBurned} format={fmtCompact} />}
                   size="sm"
                 />
               ) : null}
@@ -451,6 +493,13 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
                 }
                 size="sm"
               />
+              {serialFlag ? (
+                <Stat
+                  k="Serial flag"
+                  v={<TimeAgo at={serialFlag.issuedAt} />}
+                  size="sm"
+                />
+              ) : null}
               <Stat
                 k="Same slot"
                 v={
@@ -486,6 +535,25 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
                 size="sm"
               />
             </dl>
+            {dossier?.sameBlockBuyers && dossier.sameBlockBuyers.length > 0 ? (
+              <p className="mt-3 font-mono text-[11px] text-dim">
+                Same-slot wallets{" "}
+                {dossier.sameBlockBuyers.slice(0, 8).map((wallet, i) => (
+                  <span key={wallet}>
+                    {i > 0 ? " · " : ""}
+                    <a href={solscanAccount(wallet)} target="_blank" rel="noopener noreferrer" className="hover:text-ink">
+                      {shortAddr(wallet)}
+                    </a>
+                  </span>
+                ))}
+              </p>
+            ) : null}
+            {coverage.status === "unlabeled" ? (
+              <p className="mt-4 max-w-[40rem] text-pretty text-[12.5px] text-dim">
+                Some credited $ANSEM still has no coin on the transaction, and the amount is not a unique missing
+                total. We mark those unverified instead of guessing.
+              </p>
+            ) : null}
             <div className="mt-4 flex flex-wrap gap-2">
               {p.launchWallet && (
                 <button
@@ -527,6 +595,13 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
                       </a>
                       <span className="shrink-0">
                         <LiveNum value={hit.amount} format={fmtCompact} flash={false} />
+                        {hit.labeled === false ? (
+                          <span className="ml-2 text-gold-lit">
+                            {hit.candidates?.includes(p.mint) ? "candidate" : "unverified"}
+                          </span>
+                        ) : hit.via && hit.via !== "wallet" ? (
+                          <span className="ml-2 text-dim">{viaLabel(hit.via)}</span>
+                        ) : null}
                         <span className="ml-2 text-dim">
                           <TimeAgo at={hit.at} />
                         </span>
@@ -598,7 +673,7 @@ export function CoinView({ initial }: { initial: CoinPayload }) {
                   {sim.delta === 0 ? "same" : <LiveShift value={sim.delta} />}
                 </span>
                 <span className="ml-2 text-dim">
-                  <LiveNum value={sim.nextScore} format={fmtUsd} />
+                  <LiveNum value={sim.nextScore} format={fmtCompact} />
                 </span>
               </p>
             )}

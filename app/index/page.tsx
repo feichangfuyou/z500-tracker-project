@@ -42,10 +42,10 @@ export default async function IndexPage({ searchParams }: { searchParams: Promis
             </p>
             <h1 className="display display-title mt-2 text-balance text-ink">Daily index</h1>
             <p className="mt-2 max-w-[36rem] text-pretty text-sm text-muted">
-              Each UTC day we snapshot the top 25 coins by Crosscheck score — airdrop value, verified $ANSEM burns, and
-              boosts. This is our basket, not ansem.io’s z500.{" "}
-              <Link href="/guide" className="text-ink hover:text-gold-lit">
-                <ScrambleText text="How to read this site" />
+              Each UTC day we snapshot the top 25 coins by Crosscheck score. That snapshot is the backbone for “moved X
+              spots today” on the board and in closed-tab alerts. This is our basket, not ansem.io’s z500.{" "}
+              <Link href="/guide#score" className="text-ink hover:text-gold-lit">
+                <ScrambleText text="How the score is calculated" />
               </Link>
               .
             </p>

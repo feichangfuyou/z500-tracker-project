@@ -14,6 +14,7 @@ vi.mock("@/lib/store", () => ({
 
 vi.mock("@/lib/ansem", () => ({
   fetchAnsemCoins: async () => [],
+  fetchAnsemCoinsFeed: async () => ({ coins: [], live: false, at: 0 }),
 }));
 
 import { POST as postVerify } from "../app/api/verify/route";
@@ -26,6 +27,7 @@ import { GET as getCron } from "../app/api/cron/scan/route";
 import { PUT as putWatch } from "../app/api/watch/route";
 import { GET as getAlerts, POST as postAlerts } from "../app/api/mod/alerts/route";
 import { POST as postWebhook } from "../app/api/webhooks/helius/route";
+import { GET as getFlags } from "../app/api/public/flags/route";
 
 function jsonRequest(url: string, body: unknown) {
   return new Request(url, {
@@ -98,5 +100,10 @@ describe("API validation", () => {
   it("rejects unauthenticated alert status and test ping", async () => {
     expect((await getAlerts()).status).toBe(401);
     expect((await postAlerts()).status).toBe(401);
+  });
+
+  it("rejects a bad flags wallet", async () => {
+    const res = await getFlags(new Request("http://localhost/api/public/flags?wallet=nope"));
+    expect(res.status).toBe(400);
   });
 });

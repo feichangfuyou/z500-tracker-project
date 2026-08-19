@@ -1,6 +1,8 @@
+import { coinFromMemos, type AttrCoin } from "./burn-attr";
 import { ansemBurnInHeliusTx, type HeliusTx } from "./helius";
 import { secretEquals } from "./http";
-import { ANSEM_MINT } from "./types";
+import { flattenInstructions, memoTextsFromTx } from "./memo";
+import { ANSEM_MINT, type BurnVia } from "./types";
 
 export type WebhookTx = HeliusTx & {
   feePayer?: string;
@@ -12,6 +14,9 @@ export type WebhookHit = {
   wallet: string;
   amount: number;
   at: number;
+  mint?: string;
+  labeled?: boolean;
+  via?: BurnVia;
 };
 
 export function webhookKey() {
@@ -56,7 +61,35 @@ export function webhookHitTime(tx: WebhookTx, now = Date.now()) {
   return raw < 1e12 ? raw * 1000 : raw;
 }
 
-export function ansemBurnsFromWebhook(txs: WebhookTx[], mint = ANSEM_MINT, now = Date.now()): WebhookHit[] {
+export function trackedMintFromTx(tx: WebhookTx, tracked: Set<string>, skip = ANSEM_MINT) {
+  for (const transfer of tx.tokenTransfers || []) {
+    if (transfer.mint && transfer.mint !== skip && tracked.has(transfer.mint)) return transfer.mint;
+  }
+  const texts = [tx.description || "", ...memoTextsFromTx(tx)];
+  for (const text of texts) {
+    if (!text) continue;
+    for (const mint of tracked) {
+      if (mint !== skip && text.includes(mint)) return mint;
+    }
+  }
+  for (const ix of flattenInstructions(tx)) {
+    for (const account of ix.accounts || []) {
+      if (account !== skip && tracked.has(account)) return account;
+    }
+  }
+  for (const ad of tx.accountData || []) {
+    if (ad.account && ad.account !== skip && tracked.has(ad.account)) return ad.account;
+  }
+  return null;
+}
+
+export function ansemBurnsFromWebhook(
+  txs: WebhookTx[],
+  mint = ANSEM_MINT,
+  now = Date.now(),
+  tracked?: Set<string>,
+  coins?: AttrCoin[],
+): WebhookHit[] {
   const hits: WebhookHit[] = [];
   const seen = new Set<string>();
   for (const tx of txs) {
@@ -67,7 +100,17 @@ export function ansemBurnsFromWebhook(txs: WebhookTx[], mint = ANSEM_MINT, now =
     const wallet = burnWalletFromTx(tx, mint);
     if (!wallet) continue;
     seen.add(signature);
-    hits.push({ signature, wallet, amount, at: webhookHitTime(tx, now) });
+    const trackedMint = tracked?.size ? trackedMintFromTx(tx, tracked, mint) : null;
+    const memoCoin = !trackedMint && coins?.length ? coinFromMemos(memoTextsFromTx(tx), coins) : null;
+    const coinMint = trackedMint || memoCoin?.mint;
+    const via: BurnVia | undefined = trackedMint ? "mint" : memoCoin ? "memo" : undefined;
+    hits.push({
+      signature,
+      wallet,
+      amount,
+      at: webhookHitTime(tx, now),
+      ...(coinMint ? { mint: coinMint, via } : {}),
+    });
   }
   return hits;
 }

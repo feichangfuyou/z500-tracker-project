@@ -19,6 +19,7 @@ function live(partial: Partial<LiveData> = {}): LiveData {
 }
 
 const base = {
+  mint: "Mint111111111111111111111111111111111111111",
   walletProvenance: "unknown" as const,
   holderTop10Pct: null as number | null,
   live: live(),
@@ -57,9 +58,20 @@ describe("projectFlags", () => {
     expect(flags.some((f) => f.id === "unverified")).toBe(true);
   });
 
-  it("accepts z500 project burns when the listed launch wallet is empty", () => {
-    const flags = projectFlags({ ...base, tier: "Diamond", verifiedBurn: 0, listedBurn: 370_566 });
-    expect(flags.some((f) => f.id === "unverified")).toBe(false);
+  it("flags credited burns from unlabeled wallets instead of treating listed as complete", () => {
+    const flags = projectFlags({ ...base, tier: "Diamond", verifiedBurn: 0, listedBurn: 370_566, listedBurners: 4 });
+    expect(flags.find((f) => f.id === "unverified")?.label).toMatch(/unlabeled/i);
+  });
+
+  it("does not flag credited burns we independently filled in", () => {
+    const flags = projectFlags({
+      ...base,
+      tier: "Diamond",
+      verifiedBurn: 370_566,
+      listedBurn: 370_566,
+      listedBurners: 8,
+    });
+    expect(flags.find((f) => f.id === "unverified")).toBeUndefined();
   });
 
   it("does not flag a clean migrated coin", () => {
@@ -78,6 +90,10 @@ describe("projectFlags", () => {
     const flags = projectFlags({ ...base, sniper: true, insiderPct: 0.3 });
     expect(flags.some((f) => f.id === "sniper" && f.severity === "bad")).toBe(true);
     expect(flags.find((f) => f.id === "clustered")?.label).toMatch(/Insiders/);
+  });
+
+  it("leaves the $ANSEM index row unflagged", () => {
+    expect(projectFlags({ ...base, mint: "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump", sniper: true, launchCount: 8 })).toEqual([]);
   });
 
   it("flags serial deployers", () => {

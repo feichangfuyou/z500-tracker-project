@@ -1,3 +1,4 @@
+import { burnCoverage } from "./coverage";
 import { fmtCompact, fmtUsd } from "./format";
 import { LIQ_THIN, TOP10_BAD, TOP10_WARN, projectFlags, riskScore } from "./flags";
 import { INSIDER_BAD, INSIDER_WARN } from "./radar";
@@ -24,6 +25,7 @@ export type Rubric = {
 
 export type RubricInput = Pick<
   Project,
+  | "mint"
   | "walletProvenance"
   | "holderTop10Pct"
   | "insiderPct"
@@ -33,6 +35,7 @@ export type RubricInput = Pick<
   | "tier"
   | "verifiedBurn"
   | "listedBurn"
+  | "listedBurners"
   | "burnAmount"
   | "addedAt"
   | "launchCount"
@@ -90,6 +93,7 @@ function walletRow(p: RubricInput): RubricRow {
 function burnsRow(p: RubricInput): RubricRow {
   const paid = p.tier === "Gold" || p.tier === "Diamond";
   const burned = publicBurn(p);
+  const coverage = burnCoverage(p);
   if (p.burnAmount > 0 && burned < p.burnAmount * 0.75) {
     return {
       id: "burns",
@@ -98,14 +102,36 @@ function burnsRow(p: RubricInput): RubricRow {
       note: `Listed ${fmtCompact(burned)} vs claimed ${fmtCompact(p.burnAmount)}`,
     };
   }
-  if (paid && p.verifiedBurn == null && p.listedBurn == null) {
+  if (coverage.status === "unlabeled") {
+    const pct = coverage.pct != null ? ` · ${Math.round(coverage.pct * 100)}% independently assigned` : "";
+    return {
+      id: "burns",
+      label: "Burns",
+      mark: "warn",
+      note: coverage.burners && coverage.burners > 1
+        ? `z500 credits ${fmtCompact(coverage.listed)} from ${coverage.burners} wallets${pct}`
+        : `z500 credits ${fmtCompact(coverage.listed)}; launch wallet unverified${pct}`,
+    };
+  }
+  if (coverage.status === "partial" && coverage.pct != null) {
+    return {
+      id: "burns",
+      label: "Burns",
+      mark: "warn",
+      note: `${Math.round(coverage.pct * 100)}% of credited burns independently assigned`,
+    };
+  }
+  if (paid && coverage.status === "unchecked") {
     return { id: "burns", label: "Burns", mark: "warn", note: "Gold/Diamond, not scanned yet" };
   }
-  if (paid && burned === 0) {
+  if (paid && coverage.status === "none") {
     return { id: "burns", label: "Burns", mark: "warn", note: "No verified $ANSEM burn" };
   }
   if (burned > 0) {
-    return { id: "burns", label: "Burns", mark: "pass", note: `${fmtCompact(burned)} $ANSEM credited` };
+    const verified = coverage.verified != null && coverage.listed != null && coverage.verified !== coverage.listed
+      ? ` · ${fmtCompact(coverage.verified)} independently assigned`
+      : "";
+    return { id: "burns", label: "Burns", mark: "pass", note: `${fmtCompact(burned)} $ANSEM credited${verified}` };
   }
   if (p.verifiedBurn === 0) {
     return { id: "burns", label: "Burns", mark: "pass", note: "None in the scanned window" };

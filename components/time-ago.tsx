@@ -1,6 +1,6 @@
 "use client";
 
-import { timeAgo } from "@/lib/format";
+import { fmtAge, timeAgo } from "@/lib/format";
 import { useEffect, useState } from "react";
 
 export function TimeAgo({
@@ -28,4 +28,25 @@ export function TimeAgo({
       {timeAgo(at)}
     </span>
   );
+}
+
+/** Compact age (`47h 22m`). `now` must be a serialized snapshot so SSR and hydration match. */
+export function LiveAge({
+  at,
+  now: syncedAt,
+  className,
+}: {
+  at: number | null | undefined;
+  now: number;
+  className?: string;
+}) {
+  const [now, setNow] = useState(syncedAt);
+
+  useEffect(() => {
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  return <span className={className}>{fmtAge(at, now)}</span>;
 }

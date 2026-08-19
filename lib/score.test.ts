@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeScore, effectiveBurn, publicBurn } from "./score";
+import { burnSource, burnSourceLabel, computeScore, effectiveBurn, publicBurn, scoreParts, SCORE_KIND } from "./score";
 import type { LiveData } from "./types";
 
 function live(partial: Partial<LiveData>): LiveData {
@@ -35,6 +35,17 @@ describe("publicBurn", () => {
   });
 });
 
+describe("burnSource", () => {
+  it("labels listed credits, a finished wallet scan, and an open scan", () => {
+    expect(burnSource({ verifiedBurn: 1, listedBurn: 370_566, launchWallet: "w" })).toBe("listed");
+    expect(burnSource({ verifiedBurn: 12, verifyExhausted: true, launchWallet: "w" })).toBe("on-chain");
+    expect(burnSource({ verifiedBurn: 12, verifyExhausted: false, launchWallet: "w" })).toBe("partial");
+    expect(burnSource({ verifiedBurn: null, launchWallet: "w" })).toBe("pending");
+    expect(burnSource({ verifiedBurn: null, burnAmount: 8, launchWallet: null })).toBe("entered");
+    expect(burnSourceLabel("listed")).toBe("listed");
+  });
+});
+
 describe("computeScore", () => {
   const base = { verifiedBurn: 0, burnAmount: 0, burnPriceRef: 0 };
 
@@ -49,5 +60,21 @@ describe("computeScore", () => {
 
   it("adds active boost points", () => {
     expect(computeScore({ verifiedBurn: 0, burnAmount: 0, burnPriceRef: 0, boostPoints: 10, live: live({}) })).toBe(2500);
+  });
+
+  it("breaks the published formula into parts", () => {
+    const parts = scoreParts({
+      verifiedBurn: 10,
+      burnAmount: 0,
+      burnPriceRef: 2,
+      boostPoints: 4,
+      live: live({ airdropMcap: 1000, marketCap: 50_000 }),
+    });
+    expect(parts.airdrop).toBe(600);
+    expect(parts.burns).toBe(800);
+    expect(parts.boosts).toBe(1000);
+    expect(parts.mcapSource).toBe("airdrop");
+    expect(parts.total).toBe(2400);
+    expect(SCORE_KIND).toBe("crosscheck-v1");
   });
 });

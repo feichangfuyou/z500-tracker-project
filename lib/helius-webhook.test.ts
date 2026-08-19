@@ -4,6 +4,7 @@ import {
   ansemBurnsFromWebhook,
   burnWalletFromTx,
   heliusWebhookTransactions,
+  trackedMintFromTx,
   webhookAuthorized,
   webhookHitTime,
 } from "./helius-webhook";
@@ -42,6 +43,53 @@ describe("ansemBurnsFromWebhook", () => {
       9,
     );
     expect(hits).toEqual([{ signature: "s1", wallet: "w1", amount: 12, at: 1_700_000_000_000 }]);
+  });
+
+  it("attributes a burn to a tracked mint when the tx names it", () => {
+    const tracked = new Set(["CoinMint11111111111111111111111111111111111"]);
+    expect(
+      trackedMintFromTx(
+        {
+          description: "Burned ANSEM for CoinMint11111111111111111111111111111111111",
+          tokenTransfers: [{ mint: ANSEM_MINT, tokenAmount: 1, fromUserAccount: "w" }],
+        },
+        tracked,
+      ),
+    ).toBe("CoinMint11111111111111111111111111111111111");
+    const hits = ansemBurnsFromWebhook(
+      [
+        {
+          signature: "s3",
+          type: "BURN",
+          description: "CoinMint11111111111111111111111111111111111",
+          tokenTransfers: [{ mint: ANSEM_MINT, tokenAmount: 3, fromUserAccount: "w9" }],
+        },
+      ],
+      ANSEM_MINT,
+      9,
+      tracked,
+    );
+    expect(hits[0]?.mint).toBe("CoinMint11111111111111111111111111111111111");
+    expect(hits[0]?.via).toBe("mint");
+  });
+
+  it("attributes a burn from a memo slug when the mint is not in the tx", () => {
+    const tracked = new Set(["m1"]);
+    const hits = ansemBurnsFromWebhook(
+      [
+        {
+          signature: "memo1",
+          type: "BURN",
+          tokenTransfers: [{ mint: ANSEM_MINT, tokenAmount: 8, fromUserAccount: "wx" }],
+          instructions: [{ programId: "MemoSq4gqJC8NFXTxj6x7YhhVJXcmsuA", data: "frog" }],
+        },
+      ],
+      ANSEM_MINT,
+      9,
+      tracked,
+      [{ mint: "m1", slug: "frog", ticker: "FROG", name: "Frog" }],
+    );
+    expect(hits[0]).toMatchObject({ mint: "m1", via: "memo", amount: 8 });
   });
 
   it("falls back to fee payer when transfers omit the owner", () => {

@@ -43,7 +43,8 @@ export function crosscheckRankFromDelta(p: Pick<EmbedCoin, "officialRank" | "off
 
 export function burnLine(p: Pick<EmbedCoin, "verifiedBurn" | "listedBurn">) {
   if (p.listedBurn == null && p.verifiedBurn == null) return "Burns not verified";
-  return `${fmtCompact(publicBurn({ ...p, burnAmount: 0 }))} $ANSEM burned`;
+  const amount = `${fmtCompact(publicBurn({ ...p, burnAmount: 0 }))} $ANSEM`;
+  return p.listedBurn != null ? `${amount} credited` : `${amount} burned`;
 }
 
 export function deltaLine(p: Pick<EmbedCoin, "officialRank" | "officialDelta">) {

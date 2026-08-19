@@ -26,13 +26,12 @@ let guideReturnTo = "/";
 
 const LINKS = [
   { href: "/", text: "Board" },
+  { href: "/z500", text: "Z500" },
   { href: "/radar", text: "Radar" },
   { href: "/guide", text: "Guide" },
   { href: "/index", text: "Index" },
   { href: "/wallets", text: "Wallets" },
-  { href: "/airdrop", text: "Airdrop" },
   { href: "/partner", text: "Embed" },
-  { href: "https://ansem.io/z500", text: "Official z500", external: true },
 ] as const;
 
 function isCurrent(pathname: string, href: string) {

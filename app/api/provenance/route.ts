@@ -47,6 +47,7 @@ export async function POST(req: Request) {
         createSlot: resolved.createSlot,
         sameBlockBuys: resolved.bundle.sameBlockBuys,
         sameBlockWallets: resolved.bundle.sameBlockWallets,
+        sameBlockBuyers: resolved.bundle.sameBlockBuyers,
         sniper: resolved.bundle.sniper || Boolean(prev?.sniper),
       };
       return { ...store.provenance[mint], dossier: store.dossiers[mint] };

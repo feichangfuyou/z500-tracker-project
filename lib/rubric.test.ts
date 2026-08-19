@@ -19,6 +19,7 @@ function live(partial: Partial<LiveData> = {}): LiveData {
 }
 
 const empty = {
+  mint: "Mint111111111111111111111111111111111111111",
   walletProvenance: "unknown" as const,
   holderTop10Pct: null as number | null,
   insiderPct: null as number | null,
@@ -83,11 +84,12 @@ describe("projectRubric", () => {
     expect(projectRubric({ ...clean, holderTop10Pct: 0.8 }).rows.find((r) => r.id === "holders")?.mark).toBe("fail");
   });
 
-  it("passes when z500 credits project burns the launch wallet did not hold", () => {
-    const row = projectRubric({ ...clean, tier: "Diamond", verifiedBurn: 0, listedBurn: 370_566 }).rows.find(
+  it("warns when z500 credits burns the launch wallet did not hold", () => {
+    const row = projectRubric({ ...clean, tier: "Diamond", verifiedBurn: 0, listedBurn: 370_566, listedBurners: 3 }).rows.find(
       (r) => r.id === "burns",
     );
-    expect(row?.mark).toBe("pass");
+    expect(row?.mark).toBe("warn");
+    expect(row?.note).toMatch(/3 wallets/i);
   });
 
   it("fails a claimed burn the chain does not back", () => {

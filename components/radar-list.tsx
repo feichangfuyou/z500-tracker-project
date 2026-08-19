@@ -57,10 +57,10 @@ export function RadarList({ initial, stats: initialStats }: { initial: RadarRow[
       <div className="mt-8">
         <p className="text-pretty text-sm text-muted">No Gold or Diamond listings on this board yet.</p>
         <Link
-          href="/"
+          href="/z500"
           className="type-btn mt-4 inline-flex h-8 items-center border border-accent bg-accent px-4 font-semibold text-void"
         >
-          <ScrambleText text="Open the board" />
+          <ScrambleText text="Open Z500" />
         </Link>
       </div>
     );

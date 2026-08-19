@@ -27,9 +27,12 @@ export type NamedLaunch = {
   status?: string | null;
 };
 
-export function mergeLedger(ledger: LedgerHit[], hits: LedgerHit[], max = LEDGER_MAX) {
+export function mergeLedger(ledger: LedgerHit[], hits: LedgerHit[], max = LEDGER_MAX, extraSeen?: Iterable<string>) {
   if (!hits.length) return { ledger, fresh: [] as LedgerHit[] };
   const seen = new Set(ledger.map((h) => h.signature));
+  if (extraSeen) {
+    for (const signature of extraSeen) seen.add(signature);
+  }
   const fresh: LedgerHit[] = [];
   for (const hit of hits) {
     if (!hit.signature || !(hit.amount > 0) || seen.has(hit.signature)) continue;
@@ -52,7 +55,14 @@ export function ledgerForMint(
   max = LEDGER_PER_WALLET,
 ) {
   if (!ledger?.length) return [];
-  return ledger.filter((h) => (mint && h.mint === mint) || (wallet && h.wallet === wallet)).slice(0, max);
+  return ledger
+    .filter(
+      (h) =>
+        (mint && h.mint === mint) ||
+        (wallet && h.wallet === wallet) ||
+        (mint && h.candidates?.includes(mint)),
+    )
+    .slice(0, max);
 }
 
 export function latestLedgerAt(ledger: LedgerHit[] | undefined) {
@@ -87,6 +97,32 @@ export function namedLaunchForWallet(
     };
   }
   const row = community.find((p) => p.launchWallet === wallet);
+  if (!row) return null;
+  return { mint: row.mint, name: row.name, status: null };
+}
+
+export function namedLaunchForMint(
+  mint: string,
+  coins: {
+    mint?: string;
+    name?: string;
+    ticker?: string;
+    slug?: string;
+    status?: string | null;
+  }[],
+  community: Pick<CommunityProject, "mint" | "name">[] = [],
+): NamedLaunch | null {
+  const coin = coins.find((c) => c.mint === mint);
+  if (coin?.mint) {
+    return {
+      mint: coin.mint,
+      name: coin.name || coin.mint,
+      ticker: coin.ticker || undefined,
+      slug: coin.slug || undefined,
+      status: coin.status ?? null,
+    };
+  }
+  const row = community.find((p) => p.mint === mint);
   if (!row) return null;
   return { mint: row.mint, name: row.name, status: null };
 }
@@ -133,6 +169,7 @@ export function ingestWalletScan(opts: {
   tape: TapeEvent[];
   named: NamedLaunch | null;
   now?: number;
+  seenSignatures?: Iterable<string>;
 }) {
   const now = opts.now ?? Date.now();
   const prev = opts.burns[opts.wallet];
@@ -142,8 +179,10 @@ export function ingestWalletScan(opts: {
     amount: event.amount,
     at: now,
     mint: opts.named?.mint,
+    labeled: true,
+    via: "wallet",
   }));
-  const merged = mergeLedger(opts.ledger, hits);
+  const merged = mergeLedger(opts.ledger, hits, LEDGER_MAX, opts.seenSignatures);
   const cache = applyWalletScan(prev, opts.scan, merged.fresh, opts.wallet);
   const named = opts.named || { mint: opts.wallet, name: "Unknown" };
   let events: TapeEvent[] = [];
@@ -164,27 +203,42 @@ export function ingestWalletScan(opts: {
 }
 
 export function ingestWebhookHits(opts: {
-  hits: { signature: string; wallet: string; amount: number; at: number }[];
+  hits: { signature: string; wallet: string; amount: number; at: number; mint?: string; via?: LedgerHit["via"] }[];
   burns: Record<string, BurnCache>;
   ledger: LedgerHit[];
   tape: TapeEvent[];
   knownWallets: Set<string>;
   namedFor: (wallet: string) => NamedLaunch | null;
+  namedForMint?: (mint: string) => NamedLaunch | null;
   now?: number;
+  seenSignatures?: Iterable<string>;
 }) {
   const now = opts.now ?? Date.now();
-  const knownHits = opts.hits.filter((hit) => opts.knownWallets.has(hit.wallet));
-  const mapped: LedgerHit[] = knownHits.map((hit) => ({
-    ...hit,
-    mint: opts.namedFor(hit.wallet)?.mint,
-  }));
-  const merged = mergeLedger(opts.ledger, mapped);
+  const mapped: LedgerHit[] = opts.hits.map((hit) => {
+    const named = opts.namedFor(hit.wallet);
+    const mint = named?.mint || hit.mint;
+    const labeled = opts.knownWallets.has(hit.wallet) || Boolean(named) || Boolean(mint);
+    const via = named || opts.knownWallets.has(hit.wallet) ? "wallet" : hit.via || (mint ? "mint" : undefined);
+    return {
+      ...hit,
+      mint,
+      labeled,
+      via,
+    };
+  });
+  const merged = mergeLedger(opts.ledger, mapped, LEDGER_MAX, opts.seenSignatures);
   const burns = { ...opts.burns };
   const events: TapeEvent[] = [];
   for (const hit of merged.fresh) {
-    burns[hit.wallet] = applyWebhookHit(burns[hit.wallet], hit, now);
-    const named = opts.namedFor(hit.wallet) || { mint: hit.mint || hit.wallet, name: "Unknown" };
-    events.push(...tapeFromFresh([hit], named, hit.at || now));
+    if (opts.knownWallets.has(hit.wallet)) {
+      burns[hit.wallet] = applyWebhookHit(burns[hit.wallet], hit, now);
+    }
+    const named = opts.namedFor(hit.wallet) || (hit.mint ? opts.namedForMint?.(hit.mint) : null);
+    if (named) {
+      events.push(...tapeFromFresh([hit], named, hit.at || now));
+    } else if (hit.mint) {
+      events.push(...tapeFromFresh([hit], { mint: hit.mint, name: hit.mint }, hit.at || now));
+    }
   }
   return {
     burns,
