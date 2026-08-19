@@ -4,6 +4,26 @@ import { mapAnsemStats, type AnsemStatsJson } from "./ansem-stats";
 export { EMPTY_ANSEM_STATS, listedAirdropCaption, mapAnsemStats, type AnsemStats } from "./ansem-stats";
 
 const ANSEM = "https://ansem.io";
+const ANSEM_JSON_PATHS = new Set([
+  "/api/coins",
+  "/api/stats",
+  "/api/boosts",
+  "/api/market/ansem",
+  "/api/leaderboard/projects",
+]);
+
+/** Paths the Supabase proxy will fetch from ansem.io. Keep in sync with the edge function. */
+export function ansemProxyPath(path: string) {
+  if (!path.startsWith("/api/") || path.includes("?") || path.includes("..")) return null;
+  if (ANSEM_JSON_PATHS.has(path)) return path;
+  if (/^\/api\/coins\/[A-Za-z0-9._-]{1,80}$/.test(path)) return path;
+  return null;
+}
+
+function jsonBody(res: Response) {
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("json");
+}
 
 export type AnsemCoin = {
   slug: string;
@@ -70,13 +90,35 @@ async function cached<T>(key: string, ms: number, fn: () => Promise<T>): Promise
   return value;
 }
 
-async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${ANSEM}${path}`, {
-    headers: { accept: "application/json", "user-agent": "crosscheck/1.0" },
+async function proxyAnsemJson<T>(path: string): Promise<T> {
+  const allowed = ansemProxyPath(path);
+  if (!allowed) throw new Error(`ansem ${path} not allowed`);
+  const base = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!base || !key) throw new Error(`ansem ${path} unavailable`);
+  const res = await fetch(`${base.replace(/\/$/, "")}/functions/v1/ansem-project-burns?path=${encodeURIComponent(allowed)}`, {
+    headers: {
+      accept: "application/json",
+      apikey: key,
+      authorization: `Bearer ${key}`,
+    },
     next: { revalidate: 20 },
   });
-  if (!res.ok) throw new Error(`ansem ${path} ${res.status}`);
+  if (!res.ok || !jsonBody(res)) throw new Error(`ansem ${path} proxy ${res.status}`);
   return res.json() as Promise<T>;
+}
+
+async function getJson<T>(path: string): Promise<T> {
+  try {
+    const res = await fetch(`${ANSEM}${path}`, {
+      headers: { accept: "application/json", "user-agent": "crosscheck/1.0" },
+      next: { revalidate: 20 },
+    });
+    if (res.ok && jsonBody(res)) return res.json() as Promise<T>;
+  } catch {
+    /* Vercel IPs get Cloudflare 403; fall through to the Supabase proxy. */
+  }
+  return proxyAnsemJson<T>(path);
 }
 
 export function mapTier(raw: string | null | undefined) {
@@ -222,31 +264,7 @@ type ProjectBurnRow = { mint?: string; amount?: number; burners?: number };
 let lastGoodProjectBurns: Record<string, { amount: number; burners: number }> = {};
 
 async function fetchProjectBurnRows(): Promise<ProjectBurnRow[]> {
-  try {
-    const res = await fetch(`${ANSEM}/api/leaderboard/projects`, {
-      headers: { accept: "application/json", "user-agent": "crosscheck/1.0" },
-      next: { revalidate: 20 },
-    });
-    if (res.ok) {
-      const json = (await res.json()) as { projects?: ProjectBurnRow[] };
-      return json.projects || [];
-    }
-  } catch {
-    /* Vercel IPs get 403 on this path; fall through to the Supabase proxy. */
-  }
-  const base = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_ANON_KEY;
-  if (!base || !key) throw new Error("ansem project-burns unavailable");
-  const res = await fetch(`${base.replace(/\/$/, "")}/functions/v1/ansem-project-burns`, {
-    headers: {
-      accept: "application/json",
-      apikey: key,
-      authorization: `Bearer ${key}`,
-    },
-    next: { revalidate: 20 },
-  });
-  if (!res.ok) throw new Error(`ansem project-burns proxy ${res.status}`);
-  const json = (await res.json()) as { projects?: ProjectBurnRow[] };
+  const json = await getJson<{ projects?: ProjectBurnRow[] }>("/api/leaderboard/projects");
   return json.projects || [];
 }
 

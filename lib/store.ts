@@ -556,8 +556,10 @@ async function remoteSave(store: Store): Promise<"ok" | "stale" | "fail"> {
     if (res.ok) return "ok";
     const text = await res.text();
     if (/stale/i.test(text)) return "stale";
+    console.error("store persist failed", res.status);
     return "fail";
-  } catch {
+  } catch (err) {
+    console.error("store persist failed", err instanceof Error ? err.message : "network");
     return "fail";
   }
 }

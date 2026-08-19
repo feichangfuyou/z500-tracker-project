@@ -486,6 +486,7 @@ export async function runScanPass(opts?: { maxMs?: number }) {
     s.seenMints = namedCoins.map((c) => c.mint);
     s.mintStatus = snapshotStatuses(namedCoins);
     if (liveList && coins.length) s.coinSnapshot = { at: finishedAt, coins };
+    else if (coins.length && !(s.coinSnapshot.coins || []).length) s.coinSnapshot = { at: finishedAt, coins };
   });
 
   if (freshTape.length) {
@@ -509,6 +510,7 @@ export async function runScanPass(opts?: { maxMs?: number }) {
     dex: Object.keys(dexFresh).length,
     lastWallet,
     tape: freshTape.length,
+    mintTxChecked: mintBurnIndex.txChecked,
     at: finishedAt,
   };
 }

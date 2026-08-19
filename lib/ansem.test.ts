@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bannerUrlFrom, creditedBurn, enhancedAtFrom, isEnhanced, listedAirdropCaption, mapAnsemMarket, mapAnsemStats, mapDexPair, mapPumpCoin, mergeProjectBurns, projectBurnsByMint, resolveListedCoins } from "./ansem";
+import { bannerUrlFrom, creditedBurn, enhancedAtFrom, isEnhanced, listedAirdropCaption, mapAnsemMarket, mapAnsemStats, mapDexPair, mapPumpCoin, mergeProjectBurns, projectBurnsByMint, resolveListedCoins, ansemProxyPath } from "./ansem";
 
 describe("mapPumpCoin", () => {
   it("maps a pump.fun coin into the discovery shape", () => {
@@ -188,6 +188,23 @@ describe("projectBurnsByMint", () => {
         { amount: 1 },
       ]),
     ).toEqual({ eye: { amount: 370_566, burners: 8 } });
+  });
+});
+
+describe("ansemProxyPath", () => {
+  it("allowlists the ansem.io JSON routes we already fetch", () => {
+    expect(ansemProxyPath("/api/coins")).toBe("/api/coins");
+    expect(ansemProxyPath("/api/stats")).toBe("/api/stats");
+    expect(ansemProxyPath("/api/boosts")).toBe("/api/boosts");
+    expect(ansemProxyPath("/api/market/ansem")).toBe("/api/market/ansem");
+    expect(ansemProxyPath("/api/leaderboard/projects")).toBe("/api/leaderboard/projects");
+    expect(ansemProxyPath("/api/coins/frog-sol")).toBe("/api/coins/frog-sol");
+  });
+
+  it("rejects anything else", () => {
+    expect(ansemProxyPath("/api/coins?foo=1")).toBeNull();
+    expect(ansemProxyPath("/api/admin")).toBeNull();
+    expect(ansemProxyPath("/api/coins/../stats")).toBeNull();
   });
 });
 
