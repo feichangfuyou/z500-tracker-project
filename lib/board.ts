@@ -24,6 +24,7 @@ import { fetchDexBatch, overlayDex, type DexLive } from "./dex";
 import { dayRankDelta, previousIndexDay } from "./index-day";
 import { airdropMcapUsd, computeScore, officialDelta, officialScore, ranksFromOrder } from "./score";
 import { readStore, withStore } from "./store";
+import { slimListedCoins } from "./store-slim";
 import { DEX_HOT_MS, isIndexMint, type BoardResponse, type DexCache, type Project, type RankSnapshot } from "./types";
 import { projectFlags } from "./flags";
 import { notifyChannels } from "./notify";
@@ -39,7 +40,7 @@ const SNAPSHOT_WRITE_MS = 2 * 60 * 1000;
 function rememberListedSnapshot(coins: AnsemCoin[], now: number, prevAt: number) {
   if (!coins.length || (prevAt > 0 && now - prevAt < SNAPSHOT_WRITE_MS)) return;
   void withStore((s) => {
-    s.coinSnapshot = { at: now, coins };
+    s.coinSnapshot = { at: now, coins: slimListedCoins(coins) };
   }).catch(() => undefined);
 }
 

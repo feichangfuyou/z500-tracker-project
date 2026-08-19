@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { parseFlagLedger } from "./flag-ledger";
 import { parseBurnHits, parseMintBurnIndex, pruneBurnHits, seedBurnHits } from "./burn-index";
+import { slimRemoteStore } from "./store-slim";
 import type { AttributedBurn, BoostSeen, BurnCache, CommunityProject, DexCache, Dossier, FlagIssued, HolderCache, IndexDay, LedgerHit, MintBurnIndex, MintStatus, RankSnapshot, ScanCursor, Store, TapeEvent } from "./types";
 
 const DIR = process.env.VERCEL
@@ -534,16 +535,15 @@ async function remoteLoad(): Promise<Store | null> {
 async function remoteSave(store: Store): Promise<"ok" | "stale" | "fail"> {
   if (!remoteConfigured()) return "ok";
   try {
-    const payload: Store = {
+    const payload: Store = slimRemoteStore({
       ...store,
-      watches: {},
       holders: Object.fromEntries(
         Object.entries(store.holders || {}).map(([mint, h]) => [mint, { ...h, holders: (h.holders || []).slice(0, 12) }]),
       ),
       dossiers: Object.fromEntries(
         Object.entries(store.dossiers || {}).map(([mint, d]) => [mint, { ...d, holders: (d.holders || []).slice(0, 12) }]),
       ),
-    };
+    });
     const res = await fetch(`${process.env.SUPABASE_URL}/rest/v1/rpc/crosscheck_save`, {
       method: "POST",
       headers: {

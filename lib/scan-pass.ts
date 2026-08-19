@@ -17,6 +17,7 @@ import { airdropMcapUsd, computeScore, officialScore, publicBurn, ranksFromOrder
 import { dexRefreshBudget, heliusPaceMs, nextScanTargets, pendingFirstPass, scanBudget, SCAN_PASS_MS } from "./scan";
 import { fetchHolderRadar, fetchOnchainBurns } from "./solana";
 import { readStore, withStore } from "./store";
+import { slimListedCoins } from "./store-slim";
 import {
   detectBoostEvents,
   detectDayRankMoves,
@@ -485,8 +486,8 @@ export async function runScanPass(opts?: { maxMs?: number }) {
     s.mintBurnIndex = mintBurnIndex;
     s.seenMints = namedCoins.map((c) => c.mint);
     s.mintStatus = snapshotStatuses(namedCoins);
-    if (liveList && coins.length) s.coinSnapshot = { at: finishedAt, coins };
-    else if (coins.length && !(s.coinSnapshot.coins || []).length) s.coinSnapshot = { at: finishedAt, coins };
+    if (liveList && coins.length) s.coinSnapshot = { at: finishedAt, coins: slimListedCoins(coins) };
+    else if (coins.length && !(s.coinSnapshot.coins || []).length) s.coinSnapshot = { at: finishedAt, coins: slimListedCoins(coins) };
   });
 
   if (freshTape.length) {

@@ -5,7 +5,7 @@ import { activeBoost, type AnsemBoost } from "./ansem";
 import { SERIAL_BAD, SERIAL_WARN, launchCounts } from "./wallets";
 
 export const TAPE_MAX = 80;
-export const HISTORY_MAX = 72;
+export const HISTORY_MAX = 24;
 
 export function pushTape(tape: TapeEvent[], events: TapeEvent[], max = TAPE_MAX) {
   if (!events.length) return tape;
